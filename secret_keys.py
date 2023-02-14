@@ -6,4 +6,4 @@ class Model():
     open_ai_key = "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"
     tranlate_key = ""
     vk_music_key = ""
-
+    payment_test_token = "381764678:TEST:50614"
