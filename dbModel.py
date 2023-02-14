@@ -14,6 +14,7 @@ class DBModel:  # объект БД
     NO_DB = 2  # подключись сначала епт
     TELEGRAM_ID_ALREADY_EXISTS = 3  # куда второго юзера с таким-же айди пихаешь?
     BAD_SUBSCRIPTION_TYPE = 4  # вот там выше в 4 строке читай че можно а че нет
+    USER_DOES_NOT_EXIST = 5  # нету у нас таких клиентов
 
     # путь файла с БД
     dbFilename = "database.db"
@@ -63,6 +64,7 @@ class DBModel:  # объект БД
             return self.TELEGRAM_ID_ALREADY_EXISTS
         now = time.time()
         month = 2592000  # seconds
+        endDate = 0
         if subscriptionType == SUBSCRIPTION_PREM:
             endDate = now+month
         # добавляем строку
@@ -84,28 +86,60 @@ class DBModel:  # объект БД
 
     @checkDB
     def removeUser(self, telegramId):
-        pass
+        # если нету строки с таким id
+        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
+            return self.USER_DOES_NOT_EXIST
+        self.cur.execute(
+            "DELETE FROM {} WHERE telegramId={};".format(self.usersTable, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
 
     @checkDB
-    def changeUserSubscriptionType(self, user, newSubscriptionType=None):
-        pass
+    def changeUserSubscriptionType(self, telegramId, newSubscriptionType=SUBSCRIPTION_FREE):
+        # если нету строки с таким id
+        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
+            return self.USER_DOES_NOT_EXIST
+        self.cur.execute(
+            "UPDATE {} SET subscriptionType={} WHERE telegramId={};".format(self.usersTable, newSubscriptionType, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
 
     @checkDB
     def banUser(self, telegramId):
-        pass
+        # если нету строки с таким id
+        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
+            return self.USER_DOES_NOT_EXIST
+        self.cur.execute(
+            "UPDATE {} SET banned=1 WHERE telegramId={};".format(self.usersTable, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
 
     @checkDB
     def unbanUser(self, telegramId):
-        pass
+        # если нету строки с таким id
+        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
+            return self.USER_DOES_NOT_EXIST
+        self.cur.execute(
+            "UPDATE {} SET banned=0 WHERE telegramId={};".format(self.usersTable, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
 
     @checkDB
     def updateSubscriptionEndDate(self, telegramId, newDate):
-        pass
+        # если нету строки с таким id
+        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
+            return self.USER_DOES_NOT_EXIST
+        self.cur.execute(
+            "UPDATE {} SET subscriptionEndDate={} WHERE telegramId={};".format(self.usersTable, newDate, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
 
     @checkDB
-    def getUserFreeRolls(self, telegramId):
-        pass
-
-    @checkDB
-    def updateUserFreeRolls(self, telegramId, newCountFreeRolls=None):
-        pass
+    def updateUserFreeRolls(self, telegramId, newFreeRolls=15):
+        # если нету строки с таким id
+        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
+            return self.USER_DOES_NOT_EXIST
+        self.cur.execute(
+            "UPDATE {} SET freeRolls={} WHERE telegramId={};".format(self.usersTable, newFreeRolls, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
