@@ -13,9 +13,9 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=Model.telegram_key)
 dispatcher = Dispatcher(bot)
 PRICE = types.LabeledPrice(label="Подписка на 1 месяц", amount=500*100)
+openai.api_key = Model.open_ai_key
 
-
-@dispatcher.message_handler(commands=['buy'])
+@dispatcher.message_handler(commands=['pay'])
 async def buy(message: types.Message):
     config = Model.payment_test_token
     if config.split(':')[1] == 'TEST':
@@ -43,9 +43,7 @@ async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
 # successful payment
 @dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: types.Message):
-    print("SUCCESSFUL PAYMENT:")
     payment_info = message.successful_payment.to_python()
-    print(payment_info)
     for k, v in payment_info.items():
         print(f"{k} = {v}")
 
@@ -53,7 +51,19 @@ async def successful_payment(message: types.Message):
                            f"Платеж на сумму {message.successful_payment.total_amount // 100} {message.successful_payment.currency} прошел успешно!!!")
 
 
-
+@dispatcher.message_handler(commands=['photo'])
+async def photo_generete(message):
+    user_premium = 2
+    if user_premium == 2:
+        response = openai.Image.create(
+            prompt=message.text,
+            n=1,
+            size="1024x1024"
+        )
+        await message.send_photo(message.from_user.id, response['data'][0]['url'])
+    else:
+        await message.answer("Для того чтобы генерировать картинки вы должны стать Premium пользователем"
+                             "для этого пришлите команду /pay")
 @dispatcher.message_handler(commands = ['start','help','photo','ccылка','музыка'])
 async def welcome(message):
 
