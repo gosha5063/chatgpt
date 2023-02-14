@@ -1,15 +1,13 @@
 import dbModel
-
-import openai
-import secret_keys
-import logging
-from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types.message import ContentType
-import sqlite3
 from secret_keys import Model
 
-con = sqlite3.connect("chatgpt/db_for_gpt.db")
-cur = con.cursor()
+import logging
+
+import openai
+
+from aiogram import Bot, Dispatcher, executor, types
+from aiogram.types.message import ContentType
+
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=Model.telegram_key)
