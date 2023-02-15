@@ -147,7 +147,7 @@ async def photo_answer(message: types.Message, state: FSMContext):
 
 @dispatcher.message_handler(commands=['start'])
 async def welcome(message):
-    db.addUser(message.from_user.id,subscriptionType=dbModel.SUBSCRIPTION_PREM,)
+    db.addUser(message.from_user.id,subscriptionType=dbModel.SUBSCRIPTION_PREM)
     await message.answer("Добро пожаловать, я твой интелектуальный помошник.\n")
 
 
