@@ -44,7 +44,6 @@ async def process_callback_button1(callback_query: types.CallbackQuery):
                                                         "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
 
 
-
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_VK')
 async def process_callback_button1(callback_query: types.CallbackQuery):
     db.addMusicPlayer(callback_query.from_user.id, 'VkMusic')
@@ -90,7 +89,6 @@ async def buy(message: types.Message):
 #     def wrapper(*args, **kwargs):
 
 
-
 @dispatcher.pre_checkout_query_handler(lambda query: True)
 async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
@@ -99,7 +97,8 @@ async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
 # successful payment
 @dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: types.Message):
-    db.updateSubscriptionType(message.from_user.id,newSubscriptionType=dbModel.SUBSCRIPTION_PREM)
+    db.updateSubscriptionType(message.from_user.id,
+                              newSubscriptionType=dbModel.SUBSCRIPTION_PREM)
 
     payment_info = message.successful_payment.to_python()
     btn_Yandex = types.InlineKeyboardButton(
@@ -117,7 +116,8 @@ async def successful_payment(message: types.Message):
 @dispatcher.message_handler(Command('photo'))
 async def photo_generete(message):
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
-        db.updateSubscriptionType(message.from_user.id, dbModel.SUBSCRIPTION_FREE)
+        db.updateSubscriptionType(
+            message.from_user.id, dbModel.SUBSCRIPTION_FREE)
 
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
 
@@ -148,8 +148,9 @@ async def photo_answer(message: types.Message, state: FSMContext):
 @dispatcher.message_handler(commands=['start'])
 async def welcome(message):
     db.addUser(message.from_user.id,subscriptionType=dbModel.SUBSCRIPTION_PREM)
-    await message.answer("Добро пожаловать, я твой интелектуальный помошник.\n")
+    db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
 
+    await message.answer("Добро пожаловать, я твой интелектуальный помошник.\n")
 
 
 @dispatcher.message_handler(content_types=['text'])
