@@ -8,6 +8,7 @@ import openai
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types.message import ContentType
 
+db = dbModel.DBModel()
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=Model.telegram_key)
@@ -81,8 +82,6 @@ async def text_handler(message):
     await message.answer("Thanks")
 
 if __name__ == '__main__':
-    db = dbModel.DBModel()
     db.connect()
     executor.start_polling(dispatcher, skip_updates=True)
-    input()
     db.close()
