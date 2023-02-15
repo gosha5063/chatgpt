@@ -12,7 +12,10 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types.message import ContentType
 
+
 from states import Stash
+db = dbModel.DBModel()
+
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=Model.telegram_key)
@@ -27,7 +30,7 @@ async def process_callback_button1(callback_query: types.CallbackQuery):
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Яндекс музка\n"
                                                         "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
-    db.changeUserSubscriptionType(callback_query.from_user.id,2)
+
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_VK')
 async def process_callback_button1(callback_query: types.CallbackQuery):
@@ -138,7 +141,6 @@ async def text_handler(message):
     await message.answer(responce["choices"][0]['text'],reply_markup=keyboard)
 
 if __name__ == '__main__':
-    db = dbModel.DBModel()
     db.connect()
     executor.start_polling(dispatcher, skip_updates=True)
     db.close()

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import openai
 
 from secret_keys import Model
@@ -28,3 +29,10 @@ third  = openai.Completion.create(
 print(first)
 print(second)
 print(third)
+=======
+import dbModel
+db = dbModel.DBModel()
+db.connect()
+db.clearMusicPlayer(0)
+db.close()
+>>>>>>> dca22e65a94e86e4edbb6424dce1b5bb3e0b47bc
