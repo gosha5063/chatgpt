@@ -19,8 +19,9 @@ class DBModel:  # объект БД
     # путь файла с БД
     dbFilename = "database.db"
 
-    # название таблицы с юзерами
+    # название таблиц
     usersTable = "users"
+    memoryTable = "memory"
 
     # коннект курсор
     con, cur = None, None
@@ -57,8 +58,16 @@ class DBModel:  # объект БД
             return func(self, *args, **kwargs)
         return wrapper
 
+    def checkUserExist(func):  # если телеграм айди == хуета
+        def wrapper(self, *args, **kwargs):
+            telegramId = args[0]
+            if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
+                return self.USER_DOES_NOT_EXIST
+            return func(self, *args, **kwargs)
+        return wrapper
+
     @checkDB
-    def addUser(self, telegramId, subscriptionType=SUBSCRIPTION_FREE, freeRolls=15):
+    def addUser(self, telegramId, subscriptionType=SUBSCRIPTION_FREE, freeRolls=15, musicPlayers=[]):
         # если строка с таким айди уже есть
         if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) != 0:
             return self.TELEGRAM_ID_ALREADY_EXISTS
@@ -67,79 +76,122 @@ class DBModel:  # объект БД
         endDate = 0
         if subscriptionType == SUBSCRIPTION_PREM:
             endDate = now+month
+        musicPlayers = " ".join(musicPlayers)
         # добавляем строку
         self.cur.execute(
-            "INSERT INTO {} VALUES ({},{},{},{},{},{});".format(self.usersTable, telegramId, now, subscriptionType, freeRolls, endDate, 0))
+            "INSERT INTO {} VALUES ({},{},{},{},{},{},'{}');".format(self.usersTable, telegramId, now, subscriptionType, freeRolls, endDate, 0, musicPlayers))
+        self.cur.execute("INSERT INTO {} VALUES ({},'');".format(
+            self.memoryTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
     @checkDB
+    @checkUserExist
     def getUser(self, telegramId):
         values = self.cur.execute(
             "SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchone()
         keys = ["telegramId", "registrationDate", "subscriptionType",
-                "freeRolls", "subscriptionEndDate", "banned"]  # ключи для него
+                "freeRolls", "subscriptionEndDate", "banned", "musicPlayers"]  # ключи для него
         d = {}  # словарь который возвращаем
         for i in range(len(keys)):
             d[keys[i]] = values[i]
         return d
 
     @checkDB
+    @checkUserExist
     def removeUser(self, telegramId):
-        # если нету строки с таким id
-        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
-            return self.USER_DOES_NOT_EXIST
         self.cur.execute(
             "DELETE FROM {} WHERE telegramId={};".format(self.usersTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
     @checkDB
-    def changeUserSubscriptionType(self, telegramId, newSubscriptionType=SUBSCRIPTION_FREE):
-        # если нету строки с таким id
-        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
-            return self.USER_DOES_NOT_EXIST
+    @checkUserExist
+    def updateSubscriptionType(self, telegramId, newSubscriptionType=SUBSCRIPTION_FREE):
         self.cur.execute(
             "UPDATE {} SET subscriptionType={} WHERE telegramId={};".format(self.usersTable, newSubscriptionType, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
     @checkDB
+    @checkUserExist
     def banUser(self, telegramId):
-        # если нету строки с таким id
-        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
-            return self.USER_DOES_NOT_EXIST
         self.cur.execute(
             "UPDATE {} SET banned=1 WHERE telegramId={};".format(self.usersTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
     @checkDB
+    @checkUserExist
     def unbanUser(self, telegramId):
-        # если нету строки с таким id
-        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
-            return self.USER_DOES_NOT_EXIST
         self.cur.execute(
             "UPDATE {} SET banned=0 WHERE telegramId={};".format(self.usersTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
     @checkDB
+    @checkUserExist
     def updateSubscriptionEndDate(self, telegramId, newDate):
-        # если нету строки с таким id
-        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
-            return self.USER_DOES_NOT_EXIST
         self.cur.execute(
             "UPDATE {} SET subscriptionEndDate={} WHERE telegramId={};".format(self.usersTable, newDate, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
     @checkDB
-    def updateUserFreeRolls(self, telegramId, newFreeRolls=15):
-        # если нету строки с таким id
-        if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) == 0:
-            return self.USER_DOES_NOT_EXIST
+    @checkUserExist
+    def updateFreeRolls(self, telegramId, newFreeRolls=15):
         self.cur.execute(
             "UPDATE {} SET freeRolls={} WHERE telegramId={};".format(self.usersTable, newFreeRolls, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def addMessage(self, telegramId, message):
+        lastMessages = self.cur.execute(
+            "SELECT lastMessages FROM {} WHERE telegramId={};".format(self.memoryTable, telegramId)).fetchone()
+        lastMessages += " "+message
+        self.cur.execute(
+            'UPDATE {} SET lastMessages="{}" WHERE telegramId={};'.format(self.memoryTable, lastMessages, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def clearMemory(self, telegramId):
+        self.cur.execute(
+            'UPDATE {} SET lastMessages="" WHERE telegramId={};'.format(self.memoryTable, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def addMusicPlayer(self, telegramId, musicPlayer):
+        musicPlayers = set(self.cur.execute(
+            "SELECT musicPlayers FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchone()[0].split())
+        musicPlayers.add(musicPlayer)
+        musicPlayers = " ".join(musicPlayers).strip()
+        self.cur.execute(
+            'UPDATE {} SET musicPlayers="{}" WHERE telegramId={};'.format(self.usersTable, musicPlayers, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def removeMusicPlayer(self, telegramId, musicPlayer):
+        musicPlayers = set(self.cur.execute(
+            "SELECT musicPlayers FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchone()[0].split())
+        musicPlayers.discard(musicPlayer)
+        musicPlayers = " ".join(musicPlayers).strip()
+        self.cur.execute(
+            'UPDATE {} SET musicPlayers="{}" WHERE telegramId={};'.format(self.usersTable, musicPlayers, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def clearMusicPlayer(self, telegramId):
+        self.cur.execute(
+            'UPDATE {} SET musicPlayers="" WHERE telegramId={};'.format(self.usersTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
