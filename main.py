@@ -11,7 +11,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types.message import ContentType
 
 import logging
-
+import time
 import openai
 
 from states import Stash
@@ -25,15 +25,29 @@ PRICE = types.LabeledPrice(label="Подписка на 1 месяц", amount=50
 openai.api_key = Model.open_ai_key
 
 
+# def check_if_subscription_is_active(func):
+#     def wrapper(*args,**kwargs):
+#         message = args[0]
+#
+#         if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
+#
+#             db.updateSubscriptionType(message.from_user.id,dbModel.SUBSCRIPTION_FREE)
+#         return func(*args, **kwargs)
+#     return wrapper
+
+
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_Yandex')
 async def process_callback_button1(callback_query: types.CallbackQuery):
+    db.addMusicPlayer(callback_query.from_user.id, 'YandexMusic')
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Яндекс музка\n"
                                                         "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
 
 
+
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_VK')
 async def process_callback_button1(callback_query: types.CallbackQuery):
+    db.addMusicPlayer(callback_query.from_user.id, 'VkMusic')
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Вконтакте музка\n"
                            "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
@@ -72,6 +86,10 @@ async def buy(message: types.Message):
                            payload="test-invoice-payload")
 # pre checkout  (must be answered in 10 seconds)
 
+# def check_if_user_autificated(func):
+#     def wrapper(*args, **kwargs):
+
+
 
 @dispatcher.pre_checkout_query_handler(lambda query: True)
 async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
@@ -81,6 +99,8 @@ async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
 # successful payment
 @dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: types.Message):
+    db.updateSubscriptionType(message.from_user.id,newSubscriptionType=dbModel.SUBSCRIPTION_PREM)
+
     payment_info = message.successful_payment.to_python()
     btn_Yandex = types.InlineKeyboardButton(
         "Яндекс Музыка", callback_data='btn_Yandex')
@@ -96,8 +116,11 @@ async def successful_payment(message: types.Message):
 
 @dispatcher.message_handler(Command('photo'))
 async def photo_generete(message):
-    user_premium = 2
-    if user_premium == 2:
+    if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
+        db.updateSubscriptionType(message.from_user.id, dbModel.SUBSCRIPTION_FREE)
+
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
+
         await bot.send_message(message.from_user.id, "Пришлите описание картинки")
         await Stash.photo.set()
     else:
@@ -109,7 +132,6 @@ async def photo_generete(message):
 async def photo_answer(message: types.Message, state: FSMContext):
     photo = message.text
     await state.update_data(photo=photo)
-    print(state.get_data('photo'))
     try:
         response = openai.Image.create(
             prompt=message.text,
@@ -123,9 +145,11 @@ async def photo_answer(message: types.Message, state: FSMContext):
     await state.finish()
 
 
-@dispatcher.message_handler(commands=['start', 'help', 'photo', 'ccылка', 'музыка'])
+@dispatcher.message_handler(commands=['start'])
 async def welcome(message):
+    db.addUser(message.from_user.id,subscriptionType=dbModel.SUBSCRIPTION_PREM,)
     await message.answer("Добро пожаловать, я твой интелектуальный помошник.\n")
+
 
 
 @dispatcher.message_handler(content_types=['text'])
