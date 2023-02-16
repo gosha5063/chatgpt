@@ -9,12 +9,14 @@ from aiogram.dispatcher.filters import Command
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types.message import ContentType
-
+import requests
 import logging
 import time
 import openai
-
+from googletrans import Translator
 from states import Stash
+
+
 
 db = dbModel.DBModel()
 
@@ -23,17 +25,9 @@ bot = Bot(token=Model.telegram_key)
 dispatcher = Dispatcher(bot, storage=MemoryStorage())
 PRICE = types.LabeledPrice(label="Подписка на 1 месяц", amount=500*100)
 openai.api_key = Model.open_ai_key
+IAM_TOKEN = 't1.9euelZqdz4yUx4nGnprJnpuLys-Omu3rnpWai8-Xzp6LnsmZkp3Lypubi87l8_dWR0Zg-e98dlgo_t3z9xZ2Q2D573x2WCj-.RAQQ7NC4zSty2vay61yg36WKBy9TDRjX6UPDove48DEdZnV0Hpe0ozPCc0jnAtpEhIXmgQ9WizNy6Xnh0WqpBA'
+folder_id = 'b1gr9n62s9oofoaj0cke'
 
-
-# def check_if_subscription_is_active(func):
-#     def wrapper(*args,**kwargs):
-#         message = args[0]
-#
-#         if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
-#
-#             db.updateSubscriptionType(message.from_user.id,dbModel.SUBSCRIPTION_FREE)
-#         return func(*args, **kwargs)
-#     return wrapper
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_Yandex')
@@ -54,15 +48,22 @@ async def process_callback_button1(callback_query: types.CallbackQuery):
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'clean_history')
 async def process_callback_button1(callback_query: types.CallbackQuery):
+
+    db.clearMemory(callback_query.from_user.id)
     await callback_query.answer("Общайтесь на новую тему")
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'Add_message_to_previos')
 async def process_callback_button1(callback_query: types.CallbackQuery):
-    await callback_query.answer("Уточните запрос")
+    # db.addMessage(callback_query.from_user.id, last_message )
+    await callback_query.answer("Уточнить")
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
+@dispatcher.callback_query_handler(lambda c: c.data == 'photo_one_more')
+async def process_callback_button1(callback_query: types.CallbackQuery):
+    await photo_generete(callback_query)
+    await callback_query.message.edit_reply_markup(reply_markup=None)
 
 @dispatcher.message_handler(commands=['pay'])
 async def buy(message: types.Message):
@@ -83,16 +84,21 @@ async def buy(message: types.Message):
                            prices=[PRICE],
                            start_parameter="one-month-subscription",
                            payload="test-invoice-payload")
-# pre checkout  (must be answered in 10 seconds)
 
-# def check_if_user_autificated(func):
-#     def wrapper(*args, **kwargs):
 
 
 @dispatcher.pre_checkout_query_handler(lambda query: True)
 async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
 
+@dispatcher.message_handler(Command('text'))
+def discript_of_bot(message):
+    message.answer(""
+                   ""
+                   ""
+                   ""
+                   ""
+                   "")
 
 # successful payment
 @dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
@@ -133,12 +139,14 @@ async def photo_answer(message: types.Message, state: FSMContext):
     photo = message.text
     await state.update_data(photo=photo)
     try:
+        btn_photo = types.InlineKeyboardButton("Сгенерировать еще фото", callback_data='photo_one_more')
+        keyboard = types.InlineKeyboardMarkup().add(btn_photo)
         response = openai.Image.create(
             prompt=message.text,
             n=1,
             size="1024x1024"
         )
-        await bot.send_photo(message.from_user.id, response['data'][0]['url'])
+        await bot.send_photo(message.from_user.id, response['data'][0]['url'], reply_markup=keyboard)
 
     except openai.error.InvalidRequestError:
         await message.answer("Извините, сейчас мы не можем сгенерировать картинку по вашему запросу")
@@ -150,23 +158,28 @@ async def welcome(message):
     db.addUser(message.from_user.id,subscriptionType=dbModel.SUBSCRIPTION_PREM)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
 
-    await message.answer("Добро пожаловать, я твой интелектуальный помошник.\n")
+    await message.answer("Здравстуй, я твой новый друг, меня зовут .\n")
 
 
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
-    btn_Yandex = types.InlineKeyboardButton(
-        "Продолжить эту тему", callback_data='Add_message_to_previos')
-    btn_VK = types.InlineKeyboardButton(
-        "Новая тема", callback_data='clean_history')
+
+    btn_Yandex = types.InlineKeyboardButton("Продолжить эту тему", callback_data='Add_message_to_previos')
+    btn_VK = types.InlineKeyboardButton("Новая тема", callback_data='clean_history')
     keyboard = types.InlineKeyboardMarkup().add(btn_Yandex, btn_VK)
+    translator = Translator()
+    result = translator.translate(str(message.text), src = 'ru', dest='en')
+
     responce = openai.Completion.create(
         model="text-davinci-003",
-        prompt=message.text,
+        prompt= str(result.text),
         temperature=0.8,
         max_tokens=300,
     )
-    await message.answer(responce["choices"][0]['text'], reply_markup=keyboard)
+    last_message = result.text
+    result = translator.translate(responce['choices'][0]['text'], src = 'en', dest='ru')
+
+    await message.answer(result.text, reply_markup=keyboard)
 
 if __name__ == '__main__':
     db.connect()
