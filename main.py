@@ -177,6 +177,7 @@ async def text_handler(message):
         max_tokens=300,
     )
     last_message = result.text
+
     result = translator.translate(responce['choices'][0]['text'], src = 'en', dest='ru')
 
     await message.answer(result.text, reply_markup=keyboard)
