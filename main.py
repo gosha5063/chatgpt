@@ -161,7 +161,7 @@ async def welcome(message):
 
     await message.answer("Здравстуй, я твой новый друг, меня зовут .\n")
 @dispatcher.message_handler(Command('music'))
-def music_handler(message):
+async def music_handler(message):
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(
             message.from_user.id, dbModel.SUBSCRIPTION_FREE)
@@ -181,16 +181,16 @@ async def text_handler(message):
     keyboard = types.InlineKeyboardMarkup().add(btn_Yandex, btn_VK)
     translator = Translator()
     result = translator.translate(str(message.text), src = 'ru', dest='en')
-    print(result.text)
+
     responce = openai.Completion.create(
         model="text-davinci-003",
         prompt= str(result.text),
         temperature=0.8,
         max_tokens=300,
     )
-    print(responce['choices'][0])
+
     last_message = result.text
-    db.setLastMessage(message.from_user.id,responce['choices'][0]['text'] + last_message)
+    db.setLastMessage(message.from_user.id, last_message + responce['choices'][0]['text'] )
 
     result = translator.translate(responce['choices'][0]['text'], src = 'en', dest='ru')
 
