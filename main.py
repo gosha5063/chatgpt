@@ -56,7 +56,7 @@ async def process_callback_button1(callback_query: types.CallbackQuery):
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'Add_message_to_previos')
 async def process_callback_button1(callback_query: types.CallbackQuery):
-    # db.addMessage(callback_query.from_user.id, last_message )
+    db.updateMemory(callback_query.from_user.id, db.getLastMessage(callback_query.from_user.id))
     await callback_query.answer("Уточнить")
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
@@ -137,6 +137,7 @@ async def photo_generete(message):
 @dispatcher.message_handler(state=Stash.photo)
 async def photo_answer(message: types.Message, state: FSMContext):
     photo = message.text
+    """для ожидания ботом сообщения"""
     await state.update_data(photo=photo)
     try:
         btn_photo = types.InlineKeyboardButton("Сгенерировать еще фото", callback_data='photo_one_more')
@@ -159,7 +160,18 @@ async def welcome(message):
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
 
     await message.answer("Здравстуй, я твой новый друг, меня зовут .\n")
+@dispatcher.message_handler(Command('music'))
+def music_handler(message):
+    if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
+        db.updateSubscriptionType(
+            message.from_user.id, dbModel.SUBSCRIPTION_FREE)
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
 
+        await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию")
+        await Stash.music.set()
+    else:
+        await message.answer("Для того чтобы генерировать картинки вы должны стать Premium пользователем"
+                             "для этого пришлите команду /pay")
 
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
@@ -169,14 +181,16 @@ async def text_handler(message):
     keyboard = types.InlineKeyboardMarkup().add(btn_Yandex, btn_VK)
     translator = Translator()
     result = translator.translate(str(message.text), src = 'ru', dest='en')
-
+    print(result.text)
     responce = openai.Completion.create(
         model="text-davinci-003",
         prompt= str(result.text),
         temperature=0.8,
         max_tokens=300,
     )
+    print(responce['choices'][0])
     last_message = result.text
+    db.setLastMessage(message.from_user.id,responce['choices'][0]['text'] + last_message)
 
     result = translator.translate(responce['choices'][0]['text'], src = 'en', dest='ru')
 

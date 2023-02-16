@@ -149,10 +149,10 @@ class DBModel:  # объект БД
     @checkUserExist
     def updateMemory(self, telegramId, message):
         lastMessages = self.cur.execute(
-            "SELECT memory FROM {} WHERE telegramId={};".format(self.memoryTable, telegramId)).fetchone()
-        lastMessages += " "+message
+            "SELECT memory FROM {} WHERE telegramId={};".format(self.memoryTable, telegramId)).fetchone()[0]
+        lastMessages = lastMessages + " " + message
         self.cur.execute(
-            'UPDATE {} SET memory="{}" WHERE telegramId={};'.format(self.memoryTable, lastMessages, telegramId))
+            """UPDATE {} SET memory='{}' WHERE telegramId={};""".format(self.memoryTable, lastMessages, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
