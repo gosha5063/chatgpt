@@ -149,6 +149,7 @@ class DBModel:  # объект БД
     @checkUserExist
     def updateMemory(self, telegramId, message):
         message = normalizeText(message)
+        print("updateMemory", message)
         lastMessages = self.cur.execute(
             "SELECT memory FROM {} WHERE telegramId={};".format(self.memoryTable, telegramId)).fetchone()[0]
         print(lastMessages)
@@ -203,7 +204,7 @@ class DBModel:  # объект БД
     @checkUserExist
     def setLastMessage(self, telegramId, message):
         message = normalizeText(message)
-        print(message)
+        print("setLastMessage", message)
         self.cur.execute(
             'UPDATE {} SET lastMessage="{}" WHERE telegramId={};'.format(self.memoryTable, message, telegramId))
         self.con.commit()  # коммит
@@ -219,4 +220,6 @@ class DBModel:  # объект БД
 
 
 def normalizeText(text):
-    return text.replace("\n", " ")
+    text = text.replace("\n", " ")
+    text = text.replace("\"", "'")
+    return text
