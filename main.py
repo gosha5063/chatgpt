@@ -256,6 +256,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
         await message.answer("Извините что-то пошло не так, пришлите описание еще раз")
         await state.finish()
     i = 0
+    id = 507315
     for author in songsDict:
         for track in songsDict[author]:
             try:
@@ -302,7 +303,7 @@ async def text_handler(message):
     if db.getLang(message.from_user.id) == "ru":
         response = translator.translate(response, src='en', dest='ru').text
 
-    await message.answer(response, reply_markup=None)
+    await message.answer(response, reply_markup=keyboard)
 
 if __name__ == '__main__':
     translator = googletrans.Translator()  # переводчик
