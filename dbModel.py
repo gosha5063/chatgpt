@@ -67,7 +67,7 @@ class DBModel:  # объект БД
         return wrapper
 
     @checkDB
-    def addUser(self, telegramId, subscriptionType=SUBSCRIPTION_FREE, freeRolls=15, musicPlayers=[], lang="ru"):
+    def addUser(self, telegramId, username, subscriptionType=SUBSCRIPTION_FREE, freeRolls=15, musicPlayers=[], lang="ru"):
         # если строка с таким айди уже есть
         if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) != 0:
             return self.TELEGRAM_ID_ALREADY_EXISTS
@@ -79,7 +79,7 @@ class DBModel:  # объект БД
         musicPlayers = " ".join(musicPlayers)
         # добавляем строку
         self.cur.execute(
-            "INSERT INTO {} VALUES ({},{},{},{},{},{},'{}',{});".format(self.usersTable, telegramId, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
+            "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
         self.cur.execute("INSERT INTO {} VALUES ({},'','');".format(
             self.memoryTable, telegramId))
         self.con.commit()  # коммит

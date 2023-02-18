@@ -217,14 +217,14 @@ async def welcome(message):
         callback_data="ru"
     )
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
-    db.addUser(message.from_user.id,
+    db.addUser(message.from_user.id, message.from_user.username,
                subscriptionType=dbModel.SUBSCRIPTION_PREM)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
-
     await message.answer("Здравстуй, я твой новый друг, меня зовут Валли.\n"
                          "В меня загружен весь интернет и я знаю абсолютно все, до чего в данный момент дошло человечество.\n"
                          "И я могу быть лично твоим помошником, тебе нужно лишь сформулировать запрос. Общайся со мной как с человеком,"
                          "чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ", reply_markup=keyboard)
+    await message.delete()
 
 
 @dispatcher.message_handler(Command('music'))
@@ -286,13 +286,12 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
-
     btn_contiune = aiogram.types.InlineKeyboardButton(
         "Продолжить эту тему", callback_data='Add_message_to_previos')
     btn_new_theme = aiogram.types.InlineKeyboardButton(
         "Новая тема", callback_data='clean_history')
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_contiune, btn_new_theme)
-    
+
     result = translator.translate(str(message.text), src='ru', dest='en')
 
     response = openaiModel.generateText(result.text)
