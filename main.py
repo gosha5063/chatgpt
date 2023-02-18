@@ -11,7 +11,7 @@ import dbModel
 import openaiModel
 import secret_keys
 from states import Stash
-
+from states import defs
 # стандарт либрариес
 import requests
 import logging
@@ -37,22 +37,7 @@ PRICE = aiogram.types.LabeledPrice(
     label="Подписка на 1 месяц", amount=500*100)  # что это
 
 
-def parseTracks(rawString):  # из сырого ответа нейросети вытаскиваем треки
-    # номер точка пробел, в двойных назв трека, пробел тире пробел, имя группы
-    result = {}
-    rawString = rawString.replace("\n", "")  # убираем \n
-    # убираем номер точка пробел
 
-    for n in range(1, 11):
-        rawString = rawString.replace(str(n)+". ", " -- ")
-    rawString = rawString.split(" -- ")[1:]
-    # теперь у нас лист из: "автор - трек"
-    for i in rawString:
-        author, track = i.split(" - ")
-        if not author in result:
-            result[author] = []
-        result[author].append(track)
-    return result
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_Yandex')
@@ -76,6 +61,40 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     await music_handler(callback_query)
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
+
+@dispatcher.callback_query_handler(lambda c: c.data == 'ru')
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    btn_eng = aiogram.types.InlineKeyboardButton(
+        text="Aнглийский",
+        callback_data="eng"
+    )
+    btn_rus = aiogram.types.InlineKeyboardButton(
+        text="Руссский",
+        callback_data="ru"
+    )
+    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
+
+    await bot.send_message(callback_query.from_user.id,"Готово! Теперь ответы бота будут на русском языке,"
+                                                       "вы можете попросить его решить вам домашку, написать сочинение, или рассказать о чем-то простыми словами\n"
+                                                       " eсли хотите изменить язык, то выбирите другой язык "
+                                                       "в всплывающей клавиатуре или перейдите в /settings",reply_markup=keyboard)
+
+@dispatcher.callback_query_handler(lambda c: c.data == 'eng')
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    btn_eng = aiogram.types.InlineKeyboardButton(
+        text="Aнглийский",
+        callback_data="eng"
+    )
+    btn_rus = aiogram.types.InlineKeyboardButton(
+        text="Руссский",
+        callback_data="ru"
+    )
+    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
+
+    await bot.send_message(callback_query.from_user.id,"Готово! Теперь ответы бота будут на английском языке,"
+                                                       "вы можете попросить бота прислать вам скрипт на любом языке программирования или просто получать ответы на ангийском языке.\n"
+                                                       " Если хотите изменить язык, то выбирите другой язык "
+                                                       "в всплывающей клавиатуре или перейдите в /settings",reply_markup=keyboard)
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'clean_history')
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
@@ -189,11 +208,23 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 
 @dispatcher.message_handler(commands=['start'])
 async def welcome(message):
+    btn_eng = aiogram.types.InlineKeyboardButton(
+        text = "Aнглийский",
+        callback_data  = "eng"
+    )
+    btn_rus = aiogram.types.InlineKeyboardButton(
+        text= "Руссский",
+        callback_data = "ru"
+    )
+    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng,btn_rus)
     db.addUser(message.from_user.id,
                subscriptionType=dbModel.SUBSCRIPTION_PREM)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
 
-    await message.answer("Здравстуй, я твой новый друг, меня зовут .\n")
+    await message.answer("Здравстуй, я твой новый друг, меня зовут Валли.\n"
+                         "В меня загружен весь интернет и я знаю абсолютно все, до чего в данный момент дошло человечество.\n"
+                         "И я могу быть лично твоим помошником, тебе нужно лишь сформулировать запрос. Общайся со мной как с человеком,"
+                         "чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ",reply_markup=keyboard)
 
 
 @dispatcher.message_handler(Command('music'))
@@ -219,7 +250,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     rawText = openaiModel.generateText(
         'write me 10 ' + textEN+' songs in format author - title')
     album = client.users_playlists_create(title=message.text)
-    songsDict = parseTracks(rawText)
+    songsDict = defs.parseTracks(rawText)
     print(songsDict)
     if not songsDict:
         await message.answer("Извините что-то пошло не так, пришлите описание еще раз")
@@ -256,11 +287,11 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
 
-    btn_Yandex = aiogram.types.InlineKeyboardButton(
+    btn_contiune = aiogram.types.InlineKeyboardButton(
         "Продолжить эту тему", callback_data='Add_message_to_previos')
-    btn_VK = aiogram.types.InlineKeyboardButton(
+    btn_new_theme = aiogram.types.InlineKeyboardButton(
         "Новая тема", callback_data='clean_history')
-    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_Yandex, btn_VK)
+    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_contiune, btn_new_theme)
 
     result = translator.translate(str(message.text), src='ru', dest='en')
 
@@ -272,7 +303,7 @@ async def text_handler(message):
     result = translator.translate(
         response, src='en', dest='ru')
 
-    await message.answer(result.text, reply_markup=keyboard)
+    await message.answer(result.text, reply_markup=None)
 
 if __name__ == '__main__':
     translator = googletrans.Translator()  # переводчик
