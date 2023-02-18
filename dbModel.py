@@ -90,8 +90,8 @@ class DBModel:  # объект БД
     def getUser(self, telegramId):
         values = self.cur.execute(
             "SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchone()
-        keys = ["telegramId", "registrationDate", "subscriptionType",
-                "freeRolls", "subscriptionEndDate", "banned", "musicPlayers"]  # ключи для него
+        keys = ["telegramId", "username", "registrationDate", "subscriptionType",
+                "freeRolls", "subscriptionEndDate", "banned", "musicPlayers", "lang"]  # ключи для него
         d = {}  # словарь который возвращаем
         for i in range(len(keys)):
             d[keys[i]] = values[i]
@@ -230,6 +230,20 @@ class DBModel:  # объект БД
         lang = self.cur.execute(
             'SELECT lang from "{}" WHERE telegramId={};'.format(self.usersTable, telegramId)).fetchone()[0]
         return lang
+
+    @checkDB
+    @checkUserExist
+    def updateUsername(self, telegramId, username):
+        self.cur.execute(
+            'UPDATE {} SET username="{}" WHERE telegramId={};'.format(self.usersTable, username, telegramId))
+        self.con.commit()  # коммит
+
+    @checkDB
+    @checkUserExist
+    def getUsername(self, telegramId):
+        username = self.cur.execute(
+            'SELECT username from "{}" WHERE telegramId={};'.format(self.usersTable, telegramId)).fetchone()[0]
+        return username
 
 
 def normalizeText(text):

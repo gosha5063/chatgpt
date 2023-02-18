@@ -287,6 +287,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
+    db.updateUsername(message.from_user.id, message.from_user.username)
     btn_contiune = aiogram.types.InlineKeyboardButton(
         "Продолжить эту тему", callback_data='Add_message_to_previos')
     btn_new_theme = aiogram.types.InlineKeyboardButton(
