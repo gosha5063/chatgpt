@@ -39,6 +39,7 @@ PRICE = aiogram.types.LabeledPrice(
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_Yandex')
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    db.clearMusicPlayer(callback_query.from_user.id)
     db.addMusicPlayer(callback_query.from_user.id, 'YandexMusic')
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Яндекс музка\n"
@@ -47,6 +48,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_VK')
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    db.clearMusicPlayer(callback_query.from_user.id)
     db.addMusicPlayer(callback_query.from_user.id, 'VkMusic')
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Вконтакте музка\n"
@@ -143,15 +145,6 @@ async def pre_checkout_query(pre_checkout_q: aiogram.types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
 
 
-@dispatcher.message_handler(Command('text'))
-def discript_of_bot(message):
-    message.answer(""
-                   ""
-                   ""
-                   ""
-                   ""
-                   "")
-
 
 # successful payment
 @dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
@@ -184,9 +177,32 @@ async def photo_generete(message):
         await bot.send_message(message.from_user.id, "Пришлите описание картинки")
         await Stash.photo.set()
     else:
-        await message.answer("Для того чтобы генерировать картинки вы должны стать Premium пользователем"
+        await message.answer("Для того чтобы генерировать картинки, вы должны стать Premium пользователем"
                              "для этого пришлите команду /pay")
 
+@dispatcher.message_handler(Command("change_musicplayer"))
+async def change_musicplayer(message):
+    dt = {"YandexMusic":"VkMusic","VkMusic":"YandexMusic"}
+    player = dt[db.getUser(message.from_user.id)['musicPlayers']]
+    db.removeMusicPlayer(message.from_user.id, db.getUser(message.from_user.id)['musicPlayers'])
+    db.addMusicPlayer(message.from_user.id, player)
+
+    print(dt[db.getUser(message.from_user.id)['musicPlayers']])
+    dt = {"YandexMusic":"Яндекс музыку", "VkMusic":"Вк Музыку"}
+    await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
+
+
+@dispatcher.message_handler(Command("change_lang"))
+async def change_lang(message):
+    dt = {'en':'ru','ru':'en'}
+    db.switchLang(message.from_user.id,dt[db.getLang(message.from_user.id)])
+    dt = {'ru':"русский","en":'английский'}
+    await message.answer(f"Язык успешно сменен на {dt[db.getLang(message.from_user.id)]}")
+
+@dispatcher.message_handler(Command('settings'))
+async def settings(message):
+    await message.answer("для смены языка нажмите /change_lang\n"
+                   "для смены музыкальной площадки нажмите /change_musicplayer")
 
 @dispatcher.message_handler(state=Stash.photo)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
@@ -220,10 +236,11 @@ async def welcome(message):
     db.addUser(message.from_user.id, message.from_user.username,
                subscriptionType=dbModel.SUBSCRIPTION_PREM)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
-    await message.answer("Здравстуй, я твой новый друг, меня зовут Валли.\n"
-                         "В меня загружен весь интернет и я знаю абсолютно все, до чего в данный момент дошло человечество.\n"
-                         "И я могу быть лично твоим помошником, тебе нужно лишь сформулировать запрос. Общайся со мной как с человеком,"
-                         "чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ", reply_markup=keyboard)
+    await message.answer("➖Здравствуй, я твой новый друг, меня зовут Ботти🙃."
+    "➖В меня загружен весь интернет, поэтому я знаю абсолютно все, до чего в данный момент дошло человечество🌚."
+    "И я могу стать твоим личным помощником🔥."
+    "Тебе нужно лишь сформулировать запрос."
+    "➖ Общайся со мной как с обычным человеком😉, чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ.", reply_markup=keyboard)
     await message.delete()
 
 
@@ -287,7 +304,8 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
-    db.updateUsername(message.from_user.id, message.from_user.username)
+    db.updateUsername(message.from_user.id, message.from_user.username) # добавляет username
+
     btn_contiune = aiogram.types.InlineKeyboardButton(
         "Продолжить эту тему", callback_data='Add_message_to_previos')
     btn_new_theme = aiogram.types.InlineKeyboardButton(
