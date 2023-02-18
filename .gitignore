@@ -1,6 +1,6 @@
 *__pycache__
 *.idea
-secret_keys.py
+#secret_keys.py
 *test*
 #пока бд оставим
 #*.db
