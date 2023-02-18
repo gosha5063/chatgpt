@@ -67,7 +67,7 @@ class DBModel:  # объект БД
         return wrapper
 
     @checkDB
-    def addUser(self, telegramId, subscriptionType=SUBSCRIPTION_FREE, freeRolls=15, musicPlayers=[]):
+    def addUser(self, telegramId, subscriptionType=SUBSCRIPTION_FREE, freeRolls=15, musicPlayers=[], lang="ru"):
         # если строка с таким айди уже есть
         if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) != 0:
             return self.TELEGRAM_ID_ALREADY_EXISTS
@@ -79,7 +79,7 @@ class DBModel:  # объект БД
         musicPlayers = " ".join(musicPlayers)
         # добавляем строку
         self.cur.execute(
-            "INSERT INTO {} VALUES ({},{},{},{},{},{},'{}');".format(self.usersTable, telegramId, now, subscriptionType, freeRolls, endDate, 0, musicPlayers))
+            "INSERT INTO {} VALUES ({},{},{},{},{},{},'{}',{});".format(self.usersTable, telegramId, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
         self.cur.execute("INSERT INTO {} VALUES ({},'','');".format(
             self.memoryTable, telegramId))
         self.con.commit()  # коммит
@@ -204,7 +204,6 @@ class DBModel:  # объект БД
     @checkUserExist
     def setLastMessage(self, telegramId, message):
         message = normalizeText(message)
-        print("setLastMessage", message)
         self.cur.execute(
             'UPDATE {} SET lastMessage="{}" WHERE telegramId={};'.format(self.memoryTable, message, telegramId))
         self.con.commit()  # коммит
@@ -217,6 +216,20 @@ class DBModel:  # объект БД
             'SELECT lastMessage FROM {} WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
         self.con.commit()  # коммит
         return lastMessage
+
+    @checkDB
+    @checkUserExist
+    def switchLang(self, telegramId, lang):
+        self.cur.execute(
+            'UPDATE {} SET lang="{}" WHERE telegramId={};'.format(self.usersTable, lang, telegramId))
+        self.con.commit()  # коммит
+
+    @checkDB
+    @checkUserExist
+    def getLang(self, telegramId):
+        lang = self.cur.execute(
+            'SELECT lang from "{}" WHERE telegramId={};'.format(self.usersTable, telegramId)).fetchone()[0]
+        return lang
 
 
 def normalizeText(text):
