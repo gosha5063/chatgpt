@@ -262,6 +262,8 @@ async def music_handler(message):
 
 @dispatcher.message_handler(state=Stash.music)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
+    procent = 0
+    procent_message = await bot.send_message(message.from_user.id,f"Генерация плейлиста началась|{procent}%")
     textEN = translator.translate(str(message.text), src='ru', dest='en').text
     await state.update_data(music=message.text)
     rawText = openaiModel.generateText(
@@ -284,6 +286,8 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     for author in songsDict:
         for track in songsDict[author]:
             try:
+                await procent_message.edit_text(f"Генерация плейлиста началась, подождите немного|{procent+5}% ")
+                procent += 5
                 yandexMusicTrack = client.search(track+" "+author).best.result
                 client.users_playlists_insert_track(
                     kind=album.kind,
@@ -293,12 +297,16 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
                     revision=client.users_playlists(kind=album.kind).track_count+1)
 
                 i += 1
+                await procent_message.edit_text(f"Генерация плейлиста началась|{procent + 5}%")
+                procent += 5
             except:
+                procent+=10
                 await message.answer("Хочу добавить вам в плейлист {} - {}, но на Яндекс Музыке его нету".format(author, track))
                 await state.finish()
     url = f'https://music.yandex.ru/users/g0sha5063/playlists/{album.kind}'
-    await message.answer("Ваш плейлист готов:")
-    await message.answer(url)
+    await message.answer(f"Ваш плейлист готов:{url}")
+    await procent_message.delete()
+
     await state.finish()
 
 
