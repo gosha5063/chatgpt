@@ -1,4 +1,8 @@
+import yandex_music
+
 import dbModel
+import secret_keys
+from defs_module import parse_the_responce
 
 from secret_keys import Model
 
@@ -13,9 +17,10 @@ import requests
 import logging
 import time
 import openai
+from yandex_music import Client
 from googletrans import Translator
 from states import Stash
-
+from yandex_music import exceptions
 
 
 db = dbModel.DBModel()
@@ -45,6 +50,11 @@ async def process_callback_button1(callback_query: types.CallbackQuery):
     await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Вконтакте музка\n"
                            "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
 
+@dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music')
+async def process_callback_button1(callback_query: types.CallbackQuery):
+    await music_handler(callback_query)
+    await callback_query.message.edit_reply_markup(reply_markup=None)
+
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'clean_history')
 async def process_callback_button1(callback_query: types.CallbackQuery):
@@ -56,7 +66,7 @@ async def process_callback_button1(callback_query: types.CallbackQuery):
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'Add_message_to_previos')
 async def process_callback_button1(callback_query: types.CallbackQuery):
-    db.updateMemory(callback_query.from_user.id, db.getLastMessage(callback_query.from_user.id))
+    # db.updateMemory(callback_query.from_user.id, db.getLastMessage(callback_query.from_user.id))
     await callback_query.answer("Уточнить")
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
@@ -140,10 +150,12 @@ async def photo_answer(message: types.Message, state: FSMContext):
     """для ожидания ботом сообщения"""
     await state.update_data(photo=photo)
     try:
+        res = translator.translate(message.text,dest='en',src='ru')
         btn_photo = types.InlineKeyboardButton("Сгенерировать еще фото", callback_data='photo_one_more')
         keyboard = types.InlineKeyboardMarkup().add(btn_photo)
+
         response = openai.Image.create(
-            prompt=message.text,
+            prompt=res.text,
             n=1,
             size="1024x1024"
         )
@@ -160,18 +172,54 @@ async def welcome(message):
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
 
     await message.answer("Здравстуй, я твой новый друг, меня зовут .\n")
+
+
 @dispatcher.message_handler(Command('music'))
 async def music_handler(message):
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(
             message.from_user.id, dbModel.SUBSCRIPTION_FREE)
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
-
-        await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию")
+        btn1 = types.InlineKeyboardButton("Сгенерировать еще", callback_data='contiune_generate_music')
+        keyboard = types.InlineKeyboardMarkup().add(btn1)
+        await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию",reply_markup=keyboard)
         await Stash.music.set()
     else:
         await message.answer("Для того чтобы генерировать картинки вы должны стать Premium пользователем"
                              "для этого пришлите команду /pay")
+
+
+@dispatcher.message_handler(state=Stash.music)
+async def photo_answer(message: types.Message, state: FSMContext):
+    result = translator.translate(str(message.text), src='ru', dest='en')
+    await state.update_data(music = message.text)
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=str('write me 10 songs and enumirate them from 1 to 10' + result.text),
+        temperature=0.8,
+        max_tokens=300,
+    )
+
+    album = client.users_playlists_create(title = message.text)
+    kind = album.kind
+    treks = parse_the_responce(response['choices'][0]['text'])
+    print(treks)
+    print(result)
+    print(response)
+    i = 0
+    for trek in treks:
+        try:
+            id = client.search(treks[trek]["title" + trek.replace('.', '')] + treks[trek]["artist" + trek.replace('.', '')])
+            client.users_playlists_insert_track(kind=kind,track_id = id.best.result.id,album_id=id.best.result.albums[0].id,at=i,revision=client.users_playlists(kind=kind).track_count+1)
+            i += 1
+        except AttributeError | IndexError | yandex_music.exceptions.BadRequestError:
+            await message.answer("Извинните что-то пошло не так, попробуйте еще раз")
+            await state.finish()
+    url = f'https://music.yandex.ru/users/g0sha5063/playlists/{kind}'
+    await message.answer("Ваш плейлист готов:")
+    await message.answer(url)
+    await state.finish()
+
 
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
@@ -179,7 +227,7 @@ async def text_handler(message):
     btn_Yandex = types.InlineKeyboardButton("Продолжить эту тему", callback_data='Add_message_to_previos')
     btn_VK = types.InlineKeyboardButton("Новая тема", callback_data='clean_history')
     keyboard = types.InlineKeyboardMarkup().add(btn_Yandex, btn_VK)
-    translator = Translator()
+
     result = translator.translate(str(message.text), src = 'ru', dest='en')
 
     responce = openai.Completion.create(
@@ -190,13 +238,15 @@ async def text_handler(message):
     )
 
     last_message = result.text
-    db.setLastMessage(message.from_user.id, last_message + responce['choices'][0]['text'] )
+    # db.setLastMessage(message.from_user.id, last_message + responce['choices'][0]['text'] )
 
     result = translator.translate(responce['choices'][0]['text'], src = 'en', dest='ru')
 
     await message.answer(result.text, reply_markup=keyboard)
 
 if __name__ == '__main__':
+    client = Client(secret_keys.Model.yandex_music_key).init()
+    translator = Translator()
     db.connect()
     executor.start_polling(dispatcher, skip_updates=True)
     db.close()
