@@ -42,6 +42,7 @@ def parseTracks(rawString):  # из сырого ответа нейросети
     result = {}
     rawString = rawString.replace("\n", "")  # убираем \n
     # убираем номер точка пробел
+
     for n in range(1, 11):
         rawString = rawString.replace(str(n)+". ", " -- ")
     rawString = rawString.split(" -- ")[1:]
@@ -99,7 +100,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 @dispatcher.message_handler(commands=['pay'])
 async def buy(message: aiogram.types.Message):
-    config = Model.payment_test_token
+    config = secret_keys.paymentTextToken
     if config.split(':')[1] == 'TEST':
         await bot.send_message(message.chat.id, "Тестовый платеж!!!")
 
@@ -220,7 +221,17 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     album = client.users_playlists_create(title=message.text)
     songsDict = parseTracks(rawText)
     print(songsDict)
+    if not songsDict:
+        await message.answer("Извините что-то пошло не так, пришлите описание еще раз")
+        await state.finish()
     i = 0
+    for author in songsDict:
+        for track in songsDict[author]:
+            try:
+                id = client.search(track+" "+author).best.result.albums[0].id
+            except:
+                pass
+
     for author in songsDict:
         for track in songsDict[author]:
             try:
@@ -228,7 +239,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
                 client.users_playlists_insert_track(
                     kind=album.kind,
                     track_id=yandexMusicTrack.id,
-                    album_id=yandexMusicTrack.albums[0].id,
+                    album_id=id,
                     at=i,
                     revision=client.users_playlists(kind=album.kind).track_count+1)
 
