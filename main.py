@@ -135,6 +135,7 @@ class ThrottlingMiddleware(BaseMiddleware):
 
 
 
+
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_Yandex')
 @rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
@@ -199,6 +200,15 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
                            "вы можете попросить бота прислать вам скрипт на любом языке программирования или просто получать ответы на ангийском языке.\n"
                            " Если хотите изменить язык, то выбирите другой язык "
                            "в всплывающей клавиатуре или перейдите в /settings", reply_markup=keyboard)
+
+@dispatcher.callback_query_handler(lambda c: c.data == 'cancel')
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    await callback_query.answer("Запрос на генерацию музыки отменен")
+    await callback_query.message.edit_reply_markup(reply_markup=None)
+    """метод для обновления переменной cancel"""
+
+
+
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'clean_history')
@@ -334,9 +344,8 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 @dispatcher.message_handler(commands=['start'])
 @rate_limit(5,key='start')
 async def welcome(message):
-    music = types.KeyboardButton("Музыка",)
-    photo = types.KeyboardButton("Фото")
-    key = types.ReplyKeyboardMarkup(resize_keyboard=True).add(music,photo)
+
+
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
         callback_data="eng"
@@ -357,26 +366,33 @@ async def welcome(message):
 
 
 
+
 @dispatcher.message_handler(Command('music'))
 @rate_limit(5,key="music")
 async def music_handler(message):
+    global flag
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(
             message.from_user.id, dbModel.SUBSCRIPTION_FREE)
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
         btn1 = aiogram.types.InlineKeyboardButton(
             "Сгенерировать еще", callback_data='contiune_generate_music')
-        keyboard = aiogram.types.InlineKeyboardMarkup().add(btn1)
+        btn2 = aiogram.types.InlineKeyboardButton("Отменить",callback_data="cancel")
+        keyboard = aiogram.types.InlineKeyboardMarkup().add(btn1,btn2)
         await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию", reply_markup=keyboard)
+
         await Stash.music.set()
     else:
         await message.answer("Для того чтобы генерировать картинки вы должны стать Premium пользователем"
                              "для этого пришлите команду /pay")
 
 
+
+
 @dispatcher.message_handler(state=Stash.music)
 @rate_limit(10)
-async def photo_answer(message: aiogram.types.Message, state: FSMContext):
+async def music_answer(message: aiogram.types.Message, state: FSMContext):
+
     print(db.getUsername(message.from_user.id), "/music", message.text)
     status_message = await bot.send_message(message.from_user.id, "Думаю что подходит под ваше описание")
     album = client.users_playlists_create(title=message.text)
@@ -427,7 +443,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     url = f'https://music.yandex.ru/users/g0sha5063/playlists/{album.kind}'
 
     await status_message.delete()
-    await message.answer(f"Ваш плейлист готов:{url}")
+    await message.answer(f"Ваш плейлист готов: {url}")
 
     await state.finish()
 
@@ -436,6 +452,15 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 @rate_limit(5)
 async def text_handler(message):
     # добавляет username
+    if message.text == "Сгенерировать музыку":
+        await music_handler(message)
+        return
+    if message.text == "Сгенерировать фото":
+        await photo_generete(message)
+        return
+    music = types.KeyboardButton("Сгенерировать музыку")
+    photo = types.KeyboardButton("Сгенерировать фото")
+    key = types.ReplyKeyboardMarkup(resize_keyboard=True).add(music,photo)
     db.updateUsername(message.from_user.id, message.from_user.username)
 
     btn_contiune = aiogram.types.InlineKeyboardButton(
@@ -453,10 +478,10 @@ async def text_handler(message):
 
     if db.getLang(message.from_user.id) == "ru":
         response = translator.translate(response, src='en', dest='ru').text
-
-    await message.answer(response, reply_markup=keyboard)
+    await message.answer(response, reply_markup=key)
 
 if __name__ == '__main__':
+
     dispatcher.middleware.setup(ThrottlingMiddleware())
     translator = googletrans.Translator()  # переводчик
     client = yandex_music.Client(
