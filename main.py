@@ -30,6 +30,8 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types.message import ContentType
 
+PLAYLIST_SIZE = defs.PLAYLIST_SIZE
+
 logging.basicConfig(level=logging.INFO)
 bot = aiogram.Bot(token=secret_keys.telegram)  # создаем бота
 dispatcher = aiogram.Dispatcher(bot, storage=MemoryStorage())  # что это
@@ -145,7 +147,6 @@ async def pre_checkout_query(pre_checkout_q: aiogram.types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
 
 
-
 # successful payment
 @dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: aiogram.types.Message):
@@ -180,29 +181,33 @@ async def photo_generete(message):
         await message.answer("Для того чтобы генерировать картинки, вы должны стать Premium пользователем"
                              "для этого пришлите команду /pay")
 
+
 @dispatcher.message_handler(Command("change_musicplayer"))
 async def change_musicplayer(message):
-    dt = {"YandexMusic":"VkMusic","VkMusic":"YandexMusic"}
+    dt = {"YandexMusic": "VkMusic", "VkMusic": "YandexMusic"}
     player = dt[db.getUser(message.from_user.id)['musicPlayers']]
-    db.removeMusicPlayer(message.from_user.id, db.getUser(message.from_user.id)['musicPlayers'])
+    db.removeMusicPlayer(message.from_user.id, db.getUser(
+        message.from_user.id)['musicPlayers'])
     db.addMusicPlayer(message.from_user.id, player)
 
     print(dt[db.getUser(message.from_user.id)['musicPlayers']])
-    dt = {"YandexMusic":"Яндекс музыку", "VkMusic":"Вк Музыку"}
+    dt = {"YandexMusic": "Яндекс музыку", "VkMusic": "Вк Музыку"}
     await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
 
 
 @dispatcher.message_handler(Command("change_lang"))
 async def change_lang(message):
-    dt = {'en':'ru','ru':'en'}
-    db.switchLang(message.from_user.id,dt[db.getLang(message.from_user.id)])
-    dt = {'ru':"русский","en":'английский'}
+    dt = {'en': 'ru', 'ru': 'en'}
+    db.switchLang(message.from_user.id, dt[db.getLang(message.from_user.id)])
+    dt = {'ru': "русский", "en": 'английский'}
     await message.answer(f"Язык успешно сменен на {dt[db.getLang(message.from_user.id)]}")
+
 
 @dispatcher.message_handler(Command('settings'))
 async def settings(message):
     await message.answer("для смены языка нажмите /change_lang\n"
-                   "для смены музыкальной площадки нажмите /change_musicplayer")
+                         "для смены музыкальной площадки нажмите /change_musicplayer")
+
 
 @dispatcher.message_handler(state=Stash.photo)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
@@ -237,10 +242,10 @@ async def welcome(message):
                subscriptionType=dbModel.SUBSCRIPTION_PREM)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
     await message.answer("➖Здравствуй, я твой новый друг, меня зовут Ботти🙃."
-    "➖В меня загружен весь интернет, поэтому я знаю абсолютно все, до чего в данный момент дошло человечество🌚."
-    "И я могу стать твоим личным помощником🔥."
-    "Тебе нужно лишь сформулировать запрос."
-    "➖ Общайся со мной как с обычным человеком😉, чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ.", reply_markup=keyboard)
+                         "➖В меня загружен весь интернет, поэтому я знаю абсолютно все, до чего в данный момент дошло человечество🌚."
+                         "И я могу стать твоим личным помощником🔥."
+                         "Тебе нужно лишь сформулировать запрос."
+                         "➖ Общайся со мной как с обычным человеком😉, чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ.", reply_markup=keyboard)
     await message.delete()
 
 
@@ -262,18 +267,23 @@ async def music_handler(message):
 
 @dispatcher.message_handler(state=Stash.music)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
-    procent = 0
-    procent_message = await bot.send_message(message.from_user.id,f"Генерация плейлиста началась|{procent}%")
-    textEN = translator.translate(str(message.text), src='ru', dest='en').text
-    await state.update_data(music=message.text)
-    rawText = openaiModel.generateText(
-        'write me 10 ' + textEN+' songs in format author - title')
+    print(db.getUsername(message.from_user.id), "/music", message.text)
+    status_message = await bot.send_message(message.from_user.id, "Думаю что подходит под ваше описание")
     album = client.users_playlists_create(title=message.text)
-    songsDict = defs.parseTracks(rawText)
-    print(songsDict)
-    if not songsDict:
-        await message.answer("Извините что-то пошло не так, пришлите описание еще раз")
-        await state.finish()
+    songsDict = {}
+    while songsDict == {}:
+        textEN = translator.translate(
+            str(message.text), src='ru', dest='en').text
+        await state.update_data(music=message.text)
+        print(textEN)
+        rawText = openaiModel.generateText(
+            f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title')
+
+        songsDict = defs.parseTracks(rawText)
+        print(songsDict)
+    tracksAdded = 0
+    tracksAll = PLAYLIST_SIZE
+    await status_message.edit_text(f"Делаю плейлист|{str(int(tracksAdded/tracksAll*100))}%")
     i = 0
     id = 507315
     for author in songsDict:
@@ -286,8 +296,6 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     for author in songsDict:
         for track in songsDict[author]:
             try:
-                await procent_message.edit_text(f"Генерация плейлиста началась, подождите немного|{procent+5}% ")
-                procent += 5
                 yandexMusicTrack = client.search(track+" "+author).best.result
                 client.users_playlists_insert_track(
                     kind=album.kind,
@@ -295,24 +303,25 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
                     album_id=id,
                     at=i,
                     revision=client.users_playlists(kind=album.kind).track_count+1)
-
                 i += 1
-                await procent_message.edit_text(f"Генерация плейлиста началась|{procent + 5}%")
-                procent += 5
+                tracksAdded += 1
             except:
-                procent+=10
+                tracksAll -= 1
                 await message.answer("Хочу добавить вам в плейлист {} - {}, но на Яндекс Музыке его нету".format(author, track))
                 await state.finish()
+
+            await status_message.edit_text(f"Делаю плейлист|{str(int(tracksAdded/tracksAll*100))}%")
     url = f'https://music.yandex.ru/users/g0sha5063/playlists/{album.kind}'
+    await status_message.delete()
     await message.answer(f"Ваш плейлист готов:{url}")
-    await procent_message.delete()
 
     await state.finish()
 
 
 @dispatcher.message_handler(content_types=['text'])
 async def text_handler(message):
-    db.updateUsername(message.from_user.id, message.from_user.username) # добавляет username
+    # добавляет username
+    db.updateUsername(message.from_user.id, message.from_user.username)
 
     btn_contiune = aiogram.types.InlineKeyboardButton(
         "Продолжить эту тему", callback_data='Add_message_to_previos')
