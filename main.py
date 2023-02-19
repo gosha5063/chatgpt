@@ -277,7 +277,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
         await state.update_data(music=message.text)
         print(textEN)
         rawText = openaiModel.generateText(
-            f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title')
+            f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title',max_tokens=2048)
 
         songsDict = defs.parseTracks(rawText)
         print(songsDict)
@@ -287,9 +287,12 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     i = 0
     id = 507315
     for author in songsDict:
+        if id != 507315:
+            break
         for track in songsDict[author]:
             try:
                 id = client.search(track+" "+author).best.result.albums[0].id
+                break
             except:
                 pass
 

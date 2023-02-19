@@ -1,4 +1,4 @@
-PLAYLIST_SIZE = 7
+PLAYLIST_SIZE = 10
 
 
 def parseTracks(rawString):  # из сырого ответа нейросети вытаскиваем треки
