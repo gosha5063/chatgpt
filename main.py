@@ -304,7 +304,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
                 await message.answer("Хочу добавить вам в плейлист {} - {}, но на Яндекс Музыке его нету".format(author, track))
                 await state.finish()
     url = f'https://music.yandex.ru/users/g0sha5063/playlists/{album.kind}'
-    await message.answer(f"Ваш плейлист готов:{url}")
+    await message.answer(f"Ваш плейлист готов: {url}")
     await procent_message.delete()
 
     await state.finish()
