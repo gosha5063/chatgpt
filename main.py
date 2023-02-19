@@ -149,7 +149,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
                            "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
 
 
-@dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music', state=Stash.music)
+@dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music')
 @rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     await music_handler(callback_query)
@@ -194,9 +194,14 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
                            "в всплывающей клавиатуре или перейдите в /settings", reply_markup=keyboard)
 
 
-@dispatcher.callback_query_handler(lambda c: c.data == 'cancel', state=Stash.music)
+@dispatcher.callback_query_handler(lambda c: c.data == 'cancel_music', state=Stash.music)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, state: FSMContext):
     await callback_query.answer("Запрос на генерацию музыки отменен")
+    await callback_query.message.delete()
+    await state.finish()
+@dispatcher.callback_query_handler(lambda c: c.data == 'cancel_photo', state=Stash.photo)
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, state: FSMContext):
+    await callback_query.answer("Запрос на генерацию фото отменен")
     await callback_query.message.delete()
     await state.finish()
 
@@ -267,8 +272,10 @@ async def photo_generete(message):
             message.from_user.id, dbModel.SUBSCRIPTION_FREE)
 
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
-
-        await bot.send_message(message.from_user.id, "Пришлите описание картинки")
+        btn2 = aiogram.types.InlineKeyboardButton(
+            "Отменить", callback_data="cancel_photo")
+        keyboard = aiogram.types.InlineKeyboardMarkup().add(btn2)
+        await bot.send_message(message.from_user.id, "Пришлите описание картинки",reply_markup=keyboard)
         await Stash.photo.set()
     else:
         await message.answer("Для того чтобы генерировать картинки, вы должны стать Premium пользователем"
@@ -298,12 +305,12 @@ async def change_lang(message):
 
 @dispatcher.message_handler(Command('settings'))
 async def settings(message):
-    await message.answer("для смены языка нажмите /change_lang\n"
-                         "для смены музыкальной площадки нажмите /change_musicplayer")
+    await message.answer("для смены языка нажмите: \n/change_lang\n"
+                         "для смены музыкальной площадки нажмите: \n/change_musicplayer")
 
 
 @dispatcher.message_handler(state=Stash.photo)
-@rate_limit(10)
+@rate_limit(5)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     photo = message.text
     """для ожидания ботом сообщения"""
@@ -335,7 +342,7 @@ async def welcome(message):
     )
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.addUser(message.from_user.id, message.from_user.username,
-               subscriptionType=dbModel.SUBSCRIPTION_PREM)
+               subscriptionType=dbModel.SUBSCRIPTION_FREE)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
     await message.answer("➖Здравствуй, я твой новый друг, меня зовут Ботти🙃."
                          "➖В меня загружен весь интернет, поэтому я знаю абсолютно все, до чего в данный момент дошло человечество🌚."
@@ -351,11 +358,9 @@ async def music_handler(message):
         db.updateSubscriptionType(
             message.from_user.id, dbModel.SUBSCRIPTION_FREE)
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
-        btn1 = aiogram.types.InlineKeyboardButton(
-            "Сгенерировать еще", callback_data='contiune_generate_music')
         btn2 = aiogram.types.InlineKeyboardButton(
-            "Отменить", callback_data="cancel")
-        keyboard = aiogram.types.InlineKeyboardMarkup().add(btn1, btn2)
+            "Отменить", callback_data="cancel_music")
+        keyboard = aiogram.types.InlineKeyboardMarkup().add( btn2)
         await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию", reply_markup=keyboard)
         await Stash.music.set()
     else:
@@ -409,14 +414,16 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
                 tracksAdded += 1
             except:
                 tracksAll -= 1
+
                 await message.answer("Хочу добавить вам в плейлист {} - {}, но на Яндекс Музыке его нету".format(author, track))
                 await state.finish()
 
             await status_message.edit_text(f"Делаю плейлист|{str(int(tracksAdded/tracksAll*100))}%")
     url = f'https://music.yandex.ru/users/g0sha5063/playlists/{album.kind}'
-
+    btn_generatemore = types.InlineKeyboardButton("Сгенерировать еще", callback_data="contiune_generate_music")
+    keyboard = types.InlineKeyboardMarkup().add(btn_generatemore)
     await status_message.delete()
-    await message.answer(f"Ваш плейлист готов: {url}")
+    await message.answer(f"Ваш плейлист готов: {url}",reply_markup=keyboard)
 
     await state.finish()
 
@@ -439,7 +446,6 @@ async def text_handler(message):
 
     response = openaiModel.generateText(result.text)
 
-    last_message = result.text
 
     if db.getLang(message.from_user.id) == "ru":
         response = translator.translate(response, src='en', dest='ru').text
