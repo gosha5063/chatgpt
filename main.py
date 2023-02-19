@@ -37,8 +37,6 @@ dispatcher = aiogram.Dispatcher(bot, storage=MemoryStorage())  # что это
 PRICE = aiogram.types.LabeledPrice(
     label="Подписка на 1 месяц", amount=500*100)  # что это
 
-cancel = False
-
 
 def rate_limit(limit: int, key=None):
     """
@@ -151,7 +149,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
                            "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
 
 
-@dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music')
+@dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music', state=Stash.music)
 @rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     await music_handler(callback_query)
@@ -198,8 +196,6 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'cancel', state=Stash.music)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, state: FSMContext):
-    global cancel
-    cancel = True
     await callback_query.answer("Запрос на генерацию музыки отменен")
     await callback_query.message.delete()
     await state.finish()
@@ -207,8 +203,6 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'Add_message_to_previos')
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
-    db.updateMemory(callback_query.from_user.id,
-                    db.getLastMessage(callback_query.from_user.id))
     await callback_query.answer("Уточнить")
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
@@ -372,10 +366,6 @@ async def music_handler(message):
 @dispatcher.message_handler(state=Stash.music)
 @rate_limit(10)
 async def music_answer(message: aiogram.types.Message, state: FSMContext):
-    global cancel
-    if cancel:
-        cancel = False
-        return
     print(db.getUsername(message.from_user.id), "/music", message.text)
     status_message = await bot.send_message(message.from_user.id, "Думаю что подходит под ваше описание")
     album = client.users_playlists_create(title=message.text)
@@ -434,7 +424,6 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
 @dispatcher.message_handler(content_types=['text'])
 @rate_limit(5)
 async def text_handler(message):
-    # добавляет username
     if message.text == "Сгенерировать музыку":
         await music_handler(message)
         return
@@ -451,7 +440,6 @@ async def text_handler(message):
     response = openaiModel.generateText(result.text)
 
     last_message = result.text
-    db.setLastMessage(message.from_user.id, last_message + " "+response)
 
     if db.getLang(message.from_user.id) == "ru":
         response = translator.translate(response, src='en', dest='ru').text
