@@ -1,34 +1,27 @@
-# не ебу зачем это надо но оставлю закоменченным
-#IAM_TOKEN = 't1.9euelZqdz4yUx4nGnprJnpuLys-Omu3rnpWai8-Xzp6LnsmZkp3Lypubi87l8_dWR0Zg-e98dlgo_t3z9xZ2Q2D573x2WCj-.RAQQ7NC4zSty2vay61yg36WKBy9TDRjX6UPDove48DEdZnV0Hpe0ozPCc0jnAtpEhIXmgQ9WizNy6Xnh0WqpBA'
-#folder_id = 'b1gr9n62s9oofoaj0cke'
-
-# перенес логику openai в openaiModel.py
-
-# сделал норм парсер треков parseTracks
-
 # самописное
-
-
 import dbModel
 import openaiModel
 import secret_keys
 from states import Stash
 from states import defs
+
 # стандарт либрариес
 import requests
 import logging
 import asyncio
+import time
 
+# паблик либрариес
+import yandex_music
+
+import googletrans
+
+import aiogram
+import aiogram.bot.api
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher.handler import CancelHandler, current_handler
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.utils.exceptions import Throttled
-import time
-# паблик либрариес
-import yandex_music
-import googletrans
-import aiogram
-import aiogram.bot.api
 from aiogram.dispatcher import FSMContext, DEFAULT_RATE_LIMIT
 from aiogram.dispatcher.filters import Command
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -43,6 +36,8 @@ bot = aiogram.Bot(token=secret_keys.telegram)  # создаем бота
 dispatcher = aiogram.Dispatcher(bot, storage=MemoryStorage())  # что это
 PRICE = aiogram.types.LabeledPrice(
     label="Подписка на 1 месяц", amount=500*100)  # что это
+
+cancel = False
 
 
 def rate_limit(limit: int, key=None):
@@ -87,7 +82,8 @@ class ThrottlingMiddleware(BaseMiddleware):
         # If handler was configured, get rate limit and key from handler
         if handler:
             limit = getattr(handler, 'throttling_rate_limit', self.rate_limit)
-            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
+            key = getattr(handler, 'throttling_key',
+                          f"{self.prefix}_{handler.__name__}")
         else:
             limit = self.rate_limit
             key = f"{self.prefix}_message"
@@ -112,7 +108,8 @@ class ThrottlingMiddleware(BaseMiddleware):
         handler = current_handler.get()
         dispatcher = Dispatcher.get_current()
         if handler:
-            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
+            key = getattr(handler, 'throttling_key',
+                          f"{self.prefix}_{handler.__name__}")
         else:
             key = f"{self.prefix}_message"
 
@@ -132,8 +129,6 @@ class ThrottlingMiddleware(BaseMiddleware):
         # If current message is not last with current key - do not send message
         if thr.exceeded_count == throttled.exceeded_count:
             await message.reply('Бот доступен')
-
-
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_Yandex')
@@ -184,7 +179,6 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'eng')
 @rate_limit(5)
-
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
@@ -201,22 +195,14 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
                            " Если хотите изменить язык, то выбирите другой язык "
                            "в всплывающей клавиатуре или перейдите в /settings", reply_markup=keyboard)
 
-@dispatcher.callback_query_handler(lambda c: c.data == 'cancel')
-async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+
+@dispatcher.callback_query_handler(lambda c: c.data == 'cancel', state=Stash.music)
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, state: FSMContext):
+    global cancel
+    cancel = True
     await callback_query.answer("Запрос на генерацию музыки отменен")
-    await callback_query.message.edit_reply_markup(reply_markup=None)
-    """метод для обновления переменной cancel"""
-
-
-
-
-
-@dispatcher.callback_query_handler(lambda c: c.data == 'clean_history')
-async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
-
-    db.clearMemory(callback_query.from_user.id)
-    await callback_query.answer("Общайтесь на новую тему")
-    await callback_query.message.edit_reply_markup(reply_markup=None)
+    await callback_query.message.delete()
+    await state.finish()
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'Add_message_to_previos')
@@ -280,7 +266,7 @@ async def successful_payment(message: aiogram.types.Message):
 
 
 @dispatcher.message_handler(Command('photo'))
-@rate_limit(5,key="photo")
+@rate_limit(5, key="photo")
 async def photo_generete(message):
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(
@@ -342,9 +328,8 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 
 
 @dispatcher.message_handler(commands=['start'])
-@rate_limit(5,key='start')
+@rate_limit(5, key='start')
 async def welcome(message):
-
 
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
@@ -365,34 +350,32 @@ async def welcome(message):
                          "➖ Общайся со мной как с обычным человеком😉, чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ.", reply_markup=keyboard)
 
 
-
-
 @dispatcher.message_handler(Command('music'))
-@rate_limit(5,key="music")
+@rate_limit(5, key="music")
 async def music_handler(message):
-    global flag
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(
             message.from_user.id, dbModel.SUBSCRIPTION_FREE)
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
         btn1 = aiogram.types.InlineKeyboardButton(
             "Сгенерировать еще", callback_data='contiune_generate_music')
-        btn2 = aiogram.types.InlineKeyboardButton("Отменить",callback_data="cancel")
-        keyboard = aiogram.types.InlineKeyboardMarkup().add(btn1,btn2)
+        btn2 = aiogram.types.InlineKeyboardButton(
+            "Отменить", callback_data="cancel")
+        keyboard = aiogram.types.InlineKeyboardMarkup().add(btn1, btn2)
         await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию", reply_markup=keyboard)
-
         await Stash.music.set()
     else:
         await message.answer("Для того чтобы генерировать картинки вы должны стать Premium пользователем"
                              "для этого пришлите команду /pay")
 
 
-
-
 @dispatcher.message_handler(state=Stash.music)
 @rate_limit(10)
 async def music_answer(message: aiogram.types.Message, state: FSMContext):
-
+    global cancel
+    if cancel:
+        cancel = False
+        return
     print(db.getUsername(message.from_user.id), "/music", message.text)
     status_message = await bot.send_message(message.from_user.id, "Думаю что подходит под ваше описание")
     album = client.users_playlists_create(title=message.text)
@@ -403,7 +386,7 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
         await state.update_data(music=message.text)
         print(textEN)
         rawText = openaiModel.generateText(
-            f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title',max_tokens=2048)
+            f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=2048)
 
         songsDict = defs.parseTracks(rawText)
         print(songsDict)
@@ -460,14 +443,8 @@ async def text_handler(message):
         return
     music = types.KeyboardButton("Сгенерировать музыку")
     photo = types.KeyboardButton("Сгенерировать фото")
-    key = types.ReplyKeyboardMarkup(resize_keyboard=True).add(music,photo)
+    key = types.ReplyKeyboardMarkup(resize_keyboard=True).add(music, photo)
     db.updateUsername(message.from_user.id, message.from_user.username)
-
-    btn_contiune = aiogram.types.InlineKeyboardButton(
-        "Продолжить эту тему", callback_data='Add_message_to_previos')
-    btn_new_theme = aiogram.types.InlineKeyboardButton(
-        "Новая тема", callback_data='clean_history')
-    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_contiune, btn_new_theme)
 
     result = translator.translate(str(message.text), src='ru', dest='en')
 

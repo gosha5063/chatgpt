@@ -21,7 +21,6 @@ class DBModel:  # объект БД
 
     # название таблиц
     usersTable = "users"
-    memoryTable = "memory"
 
     # коннект курсор
     con, cur = None, None
@@ -80,8 +79,6 @@ class DBModel:  # объект БД
         # добавляем строку
         self.cur.execute(
             "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
-        self.cur.execute("INSERT INTO {} VALUES ({},'','');".format(
-            self.memoryTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
@@ -147,29 +144,6 @@ class DBModel:  # объект БД
 
     @checkDB
     @checkUserExist
-    def updateMemory(self, telegramId, message):
-        message = normalizeText(message)
-        print("updateMemory", message)
-        lastMessages = self.cur.execute(
-            "SELECT memory FROM {} WHERE telegramId={};".format(self.memoryTable, telegramId)).fetchone()[0]
-        print(lastMessages)
-        lastMessages += " " + message
-
-        self.cur.execute(
-            'UPDATE {} SET memory="{}" WHERE telegramId={};'.format(self.memoryTable, lastMessages, telegramId))
-        self.con.commit()  # коммит
-        return self.OK
-
-    @checkDB
-    @checkUserExist
-    def clearMemory(self, telegramId):
-        self.cur.execute(
-            'UPDATE {} SET memory="" WHERE telegramId={};'.format(self.memoryTable, telegramId))
-        self.con.commit()  # коммит
-        return self.OK
-
-    @checkDB
-    @checkUserExist
     def addMusicPlayer(self, telegramId, musicPlayer):
         musicPlayers = set(self.cur.execute(
             "SELECT musicPlayers FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchone()[0].split())
@@ -199,23 +173,6 @@ class DBModel:  # объект БД
             'UPDATE {} SET musicPlayers="" WHERE telegramId={};'.format(self.usersTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
-
-    @checkDB
-    @checkUserExist
-    def setLastMessage(self, telegramId, message):
-        message = normalizeText(message)
-        self.cur.execute(
-            'UPDATE {} SET lastMessage="{}" WHERE telegramId={};'.format(self.memoryTable, message, telegramId))
-        self.con.commit()  # коммит
-        return self.OK
-
-    @checkDB
-    @checkUserExist
-    def getLastMessage(self, telegramId):
-        lastMessage = self.cur.execute(
-            'SELECT lastMessage FROM {} WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
-        self.con.commit()  # коммит
-        return lastMessage
 
     @checkDB
     @checkUserExist
