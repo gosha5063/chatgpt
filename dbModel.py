@@ -67,7 +67,7 @@ class DBModel:  # объект БД
         return wrapper
 
     @checkDB
-    def addUser(self, telegramId, username, subscriptionType=SUBSCRIPTION_FREE, freeRolls=15, musicPlayers=[], lang="ru"):
+    def addUser(self, telegramId, username, subscriptionType=SUBSCRIPTION_FREE, freeRolls=10, musicPlayers=[], lang="ru"):
         # если строка с таким айди уже есть
         if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) != 0:
             return self.TELEGRAM_ID_ALREADY_EXISTS
@@ -139,7 +139,7 @@ class DBModel:  # объект БД
 
     @checkDB
     @checkUserExist
-    def updateFreeRolls(self, telegramId, newFreeRolls=15):
+    def updateFreeRolls(self, telegramId, newFreeRolls=10):
         self.cur.execute(
             "UPDATE {} SET freeRolls={} WHERE telegramId={};".format(self.usersTable, newFreeRolls, telegramId))
         self.con.commit()  # коммит

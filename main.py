@@ -7,6 +7,8 @@
 # сделал норм парсер треков parseTracks
 
 # самописное
+
+
 import dbModel
 import openaiModel
 import secret_keys
@@ -15,20 +17,26 @@ from states import defs
 # стандарт либрариес
 import requests
 import logging
-import time
+import asyncio
 
+from aiogram import Bot, Dispatcher, executor, types
+from aiogram.dispatcher.handler import CancelHandler, current_handler
+from aiogram.dispatcher.middlewares import BaseMiddleware
+from aiogram.utils.exceptions import Throttled
+import time
 # паблик либрариес
 import yandex_music
-
 import googletrans
-
 import aiogram
 import aiogram.bot.api
-from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher import FSMContext, DEFAULT_RATE_LIMIT
 from aiogram.dispatcher.filters import Command
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types.message import ContentType
+
+
+PLAYLIST_SIZE = defs.PLAYLIST_SIZE
 
 logging.basicConfig(level=logging.INFO)
 bot = aiogram.Bot(token=secret_keys.telegram)  # создаем бота
@@ -37,7 +45,98 @@ PRICE = aiogram.types.LabeledPrice(
     label="Подписка на 1 месяц", amount=500*100)  # что это
 
 
+def rate_limit(limit: int, key=None):
+    """
+    Decorator for configuring rate limit and key in different functions.
+
+    :param limit:
+    :param key:
+    :return:
+    """
+
+    def decorator(func):
+        setattr(func, 'throttling_rate_limit', limit)
+        if key:
+            setattr(func, 'throttling_key', key)
+        return func
+
+    return decorator
+
+
+class ThrottlingMiddleware(BaseMiddleware):
+    """
+    Simple middleware
+    """
+
+    def __init__(self, limit=DEFAULT_RATE_LIMIT, key_prefix='antiflood_'):
+        self.rate_limit = limit
+        self.prefix = key_prefix
+        super(ThrottlingMiddleware, self).__init__()
+
+    async def on_process_message(self, message: types.Message, data: dict):
+        """
+        This handler is called when dispatcher receives a message
+
+        :param message:
+        """
+        # Get current handler
+        handler = current_handler.get()
+
+        # Get dispatcher from context
+        dispatcher = aiogram.Dispatcher.get_current()
+        # If handler was configured, get rate limit and key from handler
+        if handler:
+            limit = getattr(handler, 'throttling_rate_limit', self.rate_limit)
+            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
+        else:
+            limit = self.rate_limit
+            key = f"{self.prefix}_message"
+
+        # Use Dispatcher.throttle method.
+        try:
+            await dispatcher.throttle(key, rate=limit)
+        except Throttled as t:
+            # Execute action
+            await self.message_throttled(message, t)
+
+            # Cancel current handler
+            raise CancelHandler()
+
+    async def message_throttled(self, message: types.Message, throttled: Throttled):
+        """
+        Notify user only on first exceed and notify about unlocking only on last exceed
+
+        :param message:
+        :param throttled:
+        """
+        handler = current_handler.get()
+        dispatcher = Dispatcher.get_current()
+        if handler:
+            key = getattr(handler, 'throttling_key', f"{self.prefix}_{handler.__name__}")
+        else:
+            key = f"{self.prefix}_message"
+
+        # Calculate how many time is left till the block ends
+        delta = throttled.rate - throttled.delta
+
+        # Prevent flooding
+        if throttled.exceeded_count <= 2:
+            await message.reply('Слишком много запросов, скоро бот будет снова доступен для вас')
+
+        # Sleep.
+        await asyncio.sleep(delta)
+
+        # Check lock status
+        thr = await dispatcher.check_key(key)
+
+        # If current message is not last with current key - do not send message
+        if thr.exceeded_count == throttled.exceeded_count:
+            await message.reply('Бот доступен')
+
+
+
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_Yandex')
+@rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     db.clearMusicPlayer(callback_query.from_user.id)
     db.addMusicPlayer(callback_query.from_user.id, 'YandexMusic')
@@ -47,6 +146,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'btn_VK')
+@rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     db.clearMusicPlayer(callback_query.from_user.id)
     db.addMusicPlayer(callback_query.from_user.id, 'VkMusic')
@@ -56,12 +156,14 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music')
+@rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     await music_handler(callback_query)
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'ru')
+@rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
@@ -80,6 +182,8 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'eng')
+@rate_limit(5)
+
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
@@ -145,7 +249,6 @@ async def pre_checkout_query(pre_checkout_q: aiogram.types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
 
 
-
 # successful payment
 @dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: aiogram.types.Message):
@@ -167,6 +270,7 @@ async def successful_payment(message: aiogram.types.Message):
 
 
 @dispatcher.message_handler(Command('photo'))
+@rate_limit(5,key="photo")
 async def photo_generete(message):
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(
@@ -180,31 +284,36 @@ async def photo_generete(message):
         await message.answer("Для того чтобы генерировать картинки, вы должны стать Premium пользователем"
                              "для этого пришлите команду /pay")
 
+
 @dispatcher.message_handler(Command("change_musicplayer"))
 async def change_musicplayer(message):
-    dt = {"YandexMusic":"VkMusic","VkMusic":"YandexMusic"}
+    dt = {"YandexMusic": "VkMusic", "VkMusic": "YandexMusic"}
     player = dt[db.getUser(message.from_user.id)['musicPlayers']]
-    db.removeMusicPlayer(message.from_user.id, db.getUser(message.from_user.id)['musicPlayers'])
+    db.removeMusicPlayer(message.from_user.id, db.getUser(
+        message.from_user.id)['musicPlayers'])
     db.addMusicPlayer(message.from_user.id, player)
 
     print(dt[db.getUser(message.from_user.id)['musicPlayers']])
-    dt = {"YandexMusic":"Яндекс музыку", "VkMusic":"Вк Музыку"}
+    dt = {"YandexMusic": "Яндекс музыку", "VkMusic": "Вк Музыку"}
     await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
 
 
 @dispatcher.message_handler(Command("change_lang"))
 async def change_lang(message):
-    dt = {'en':'ru','ru':'en'}
-    db.switchLang(message.from_user.id,dt[db.getLang(message.from_user.id)])
-    dt = {'ru':"русский","en":'английский'}
+    dt = {'en': 'ru', 'ru': 'en'}
+    db.switchLang(message.from_user.id, dt[db.getLang(message.from_user.id)])
+    dt = {'ru': "русский", "en": 'английский'}
     await message.answer(f"Язык успешно сменен на {dt[db.getLang(message.from_user.id)]}")
+
 
 @dispatcher.message_handler(Command('settings'))
 async def settings(message):
     await message.answer("для смены языка нажмите /change_lang\n"
-                   "для смены музыкальной площадки нажмите /change_musicplayer")
+                         "для смены музыкальной площадки нажмите /change_musicplayer")
+
 
 @dispatcher.message_handler(state=Stash.photo)
+@rate_limit(10)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     photo = message.text
     """для ожидания ботом сообщения"""
@@ -223,7 +332,11 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 
 
 @dispatcher.message_handler(commands=['start'])
+@rate_limit(5,key='start')
 async def welcome(message):
+    music = types.KeyboardButton("Музыка",)
+    photo = types.KeyboardButton("Фото")
+    key = types.ReplyKeyboardMarkup(resize_keyboard=True).add(music,photo)
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
         callback_data="eng"
@@ -237,14 +350,15 @@ async def welcome(message):
                subscriptionType=dbModel.SUBSCRIPTION_PREM)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
     await message.answer("➖Здравствуй, я твой новый друг, меня зовут Ботти🙃."
-    "➖В меня загружен весь интернет, поэтому я знаю абсолютно все, до чего в данный момент дошло человечество🌚."
-    "И я могу стать твоим личным помощником🔥."
-    "Тебе нужно лишь сформулировать запрос."
-    "➖ Общайся со мной как с обычным человеком😉, чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ.", reply_markup=keyboard)
-    await message.delete()
+                         "➖В меня загружен весь интернет, поэтому я знаю абсолютно все, до чего в данный момент дошло человечество🌚."
+                         "И я могу стать твоим личным помощником🔥."
+                         "Тебе нужно лишь сформулировать запрос."
+                         "➖ Общайся со мной как с обычным человеком😉, чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ.", reply_markup=keyboard)
+
 
 
 @dispatcher.message_handler(Command('music'))
+@rate_limit(5,key="music")
 async def music_handler(message):
     if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(
@@ -261,33 +375,40 @@ async def music_handler(message):
 
 
 @dispatcher.message_handler(state=Stash.music)
+@rate_limit(10)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
-    procent = 0
-    procent_message = await bot.send_message(message.from_user.id,f"Генерация плейлиста началась|{procent}%")
-    textEN = translator.translate(str(message.text), src='ru', dest='en').text
-    await state.update_data(music=message.text)
-    rawText = openaiModel.generateText(
-        'write me 10 ' + textEN+' songs in format author - title')
+    print(db.getUsername(message.from_user.id), "/music", message.text)
+    status_message = await bot.send_message(message.from_user.id, "Думаю что подходит под ваше описание")
     album = client.users_playlists_create(title=message.text)
-    songsDict = defs.parseTracks(rawText)
-    print(songsDict)
-    if not songsDict:
-        await message.answer("Извините что-то пошло не так, пришлите описание еще раз")
-        await state.finish()
+    songsDict = {}
+    while songsDict == {}:
+        textEN = translator.translate(
+            str(message.text), src='ru', dest='en').text
+        await state.update_data(music=message.text)
+        print(textEN)
+        rawText = openaiModel.generateText(
+            f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title',max_tokens=2048)
+
+        songsDict = defs.parseTracks(rawText)
+        print(songsDict)
+    tracksAdded = 0
+    tracksAll = PLAYLIST_SIZE
+    await status_message.edit_text(f"Делаю плейлист|{str(int(tracksAdded/tracksAll*100))}%")
     i = 0
     id = 507315
     for author in songsDict:
+        if id != 507315:
+            break
         for track in songsDict[author]:
             try:
                 id = client.search(track+" "+author).best.result.albums[0].id
+                break
             except:
                 pass
 
     for author in songsDict:
         for track in songsDict[author]:
             try:
-                await procent_message.edit_text(f"Генерация плейлиста началась, подождите немного|{procent+5}% ")
-                procent += 5
                 yandexMusicTrack = client.search(track+" "+author).best.result
                 client.users_playlists_insert_track(
                     kind=album.kind,
@@ -295,24 +416,27 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
                     album_id=id,
                     at=i,
                     revision=client.users_playlists(kind=album.kind).track_count+1)
-
                 i += 1
-                await procent_message.edit_text(f"Генерация плейлиста началась|{procent + 5}%")
-                procent += 5
+                tracksAdded += 1
             except:
-                procent+=10
+                tracksAll -= 1
                 await message.answer("Хочу добавить вам в плейлист {} - {}, но на Яндекс Музыке его нету".format(author, track))
                 await state.finish()
+
+            await status_message.edit_text(f"Делаю плейлист|{str(int(tracksAdded/tracksAll*100))}%")
     url = f'https://music.yandex.ru/users/g0sha5063/playlists/{album.kind}'
-    await message.answer(f"Ваш плейлист готов: {url}")
-    await procent_message.delete()
+
+    await status_message.delete()
+    await message.answer(f"Ваш плейлист готов:{url}")
 
     await state.finish()
 
 
 @dispatcher.message_handler(content_types=['text'])
+@rate_limit(5)
 async def text_handler(message):
-    db.updateUsername(message.from_user.id, message.from_user.username) # добавляет username
+    # добавляет username
+    db.updateUsername(message.from_user.id, message.from_user.username)
 
     btn_contiune = aiogram.types.InlineKeyboardButton(
         "Продолжить эту тему", callback_data='Add_message_to_previos')
@@ -333,6 +457,7 @@ async def text_handler(message):
     await message.answer(response, reply_markup=keyboard)
 
 if __name__ == '__main__':
+    dispatcher.middleware.setup(ThrottlingMiddleware())
     translator = googletrans.Translator()  # переводчик
     client = yandex_music.Client(
         secret_keys.yandexMusic).init()  # клиент яндекс музыки
