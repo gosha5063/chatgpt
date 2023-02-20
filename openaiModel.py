@@ -11,6 +11,7 @@ def generatePhoto(text, size="1024x1024"):
             n=1,
             size=size
         )
+
         url = response['data'][0]['url']
         return url
 
