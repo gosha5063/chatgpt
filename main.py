@@ -7,7 +7,6 @@ from states import defs
 
 # стандарт либрариес
 import requests
-import logging
 import asyncio
 import time
 
@@ -32,9 +31,8 @@ from aiogram.types.message import ContentType
 PLAYLIST_SIZE = defs.PLAYLIST_SIZE
 ONE_MONTH = 2592000
 
-logging.basicConfig(level=logging.INFO)
 bot = aiogram.Bot(token=secret_keys.telegram)  # создаем бота
-dispatcher = aiogram.Dispatcher(bot, storage=MemoryStorage())  # что это
+dispatcher = aiogram.Dispatcher(bot, storage=MemoryStorage())
 PRICE = aiogram.types.LabeledPrice(
     label="Подписка на 1 месяц", amount=249*100)  # что это
 
@@ -252,6 +250,7 @@ async def pre_checkout_query(pre_checkout_q: aiogram.types.PreCheckoutQuery):
 async def successful_payment(message: aiogram.types.Message):
     db.updateSubscriptionType(message.from_user.id,
                               newSubscriptionType=dbModel.SUBSCRIPTION_PREM)
+    db.updateSubscriptionEndDate(message.from_user.id, time.time()+ONE_MONTH)
 
     payment_info = message.successful_payment.to_python()
     btn_Yandex = aiogram.types.InlineKeyboardButton(
@@ -259,6 +258,7 @@ async def successful_payment(message: aiogram.types.Message):
     btn_VK = aiogram.types.InlineKeyboardButton(
         "Вк Музыка", callback_data='btn_VK')
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_Yandex, btn_VK)
+    print(message.from_user.username,"/pay")
     for k, v in payment_info.items():
         print(f"{k} = {v}")
 
@@ -292,7 +292,7 @@ async def change_musicplayer(message):
             message.from_user.id)['musicPlayers'])
         db.addMusicPlayer(message.from_user.id, player)
 
-        print(dt[db.getUser(message.from_user.id)['musicPlayers']])
+        #print(dt[db.getUser(message.from_user.id)['musicPlayers']])
         dt = {"YandexMusic": "Яндекс музыку", "VkMusic": "Вк Музыку"}
         await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
     except KeyError:
@@ -301,8 +301,7 @@ async def change_musicplayer(message):
 
 @dispatcher.message_handler(Command('premium'))
 async def preium_info(message: types.Message):
-    photo = open(
-        r'D:\gpt\files\photo\__make_her_gold_hair_a8f644a7-5c20-4a91-a034-a892c55a47a4.png', 'rb')
+    photo = open('./files/photo/__make_her_gold_hair_a8f644a7-5c20-4a91-a034-a892c55a47a4.png', 'rb')
     await message.answer_photo(photo=photo, caption="Премиум")
 
 
@@ -310,8 +309,8 @@ async def preium_info(message: types.Message):
 async def change_lang(message):
     dt = {'en': 'ru', 'ru': 'en'}
     db.switchLang(message.from_user.id, dt[db.getLang(message.from_user.id)])
-    dt = {'ru': open("files/texts/change_lang_russian").read(),
-          "en": open("files/texts/change_lang_eng").read()}
+    dt = {'ru': open("./files/texts/change_lang_russian",encoding="utf-8").read(),
+          "en": open("./files/texts/change_lang_eng",encoding="utf-8").read()}
     await message.answer(dt[db.getLang(message.from_user.id)], parse_mode="Markdown")
 
 
@@ -324,18 +323,19 @@ async def settings(message):
 @dispatcher.message_handler(state=Stash.photo)
 @rate_limit(5)
 async def photo_answer(message: aiogram.types.Message, state: FSMContext):
+    print(db.getUsername(message.from_user.id), "/photo", message.text)
     photo = message.text
-    """для ожидания ботом сообщения"""
-    await state.update_data(photo=photo)
-    res = translator.translate(message.text, dest='en', src='ru')
+    textEN = translator.translate(message.text, dest='en', src='ru').text
+    print(textEN)
     btn_photo = aiogram.types.InlineKeyboardButton(
         "Сгенерировать еще фото", callback_data='photo_one_more')
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_photo)
-    imageUrl = openaiModel.generatePhoto(res.text)
+    imageUrl = openaiModel.generatePhoto(textEN)
     if imageUrl == None:
         await message.answer("Извините, сейчас мы не можем сгенерировать картинку по вашему запросу")
     else:
         await bot.send_photo(message.from_user.id, imageUrl, reply_markup=keyboard)
+        print(imageUrl)
         if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_FREE:
             db.updateFreeRolls(message.from_user.id, db.getUser(
                 message.from_user.id)["freeRolls"]-1)
@@ -359,10 +359,10 @@ async def welcome(message: types.Message):
 
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.addUser(message.from_user.id, message.from_user.username,
-               subscriptionType=dbModel.SUBSCRIPTION_FREE,freeRolls=3)
-    #db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
-    photo = open("./files/photo/__make_her_most_realistic_4k_avatar_f0b21111-64c1-48fb-ba7d-6b55f56937ee.png", 'rb')
-    await message.answer_photo(photo=photo, caption=open("./files/texts/welcome_message",encoding="utf-8").read(), reply_markup=keyboard, parse_mode="Markdown")
+               subscriptionType=dbModel.SUBSCRIPTION_FREE, freeRolls=3)
+    photo = open(
+        "./files/photo/__make_her_most_realistic_4k_avatar_f0b21111-64c1-48fb-ba7d-6b55f56937ee.png", 'rb')
+    await message.answer_photo(photo=photo, caption=open("./files/texts/welcome_message", encoding="utf-8").read(), reply_markup=keyboard, parse_mode="Markdown")
 
 
 @dispatcher.message_handler(Command('music'))
@@ -437,6 +437,7 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
     keyboard = types.InlineKeyboardMarkup().add(btn_generatemore)
     await status_message.delete()
     await message.answer(f"Ваш плейлист готов: {url}", reply_markup=keyboard)
+    print(url)
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_FREE:
         db.updateFreeRolls(message.from_user.id, db.getUser(
             message.from_user.id)["freeRolls"]-1)
@@ -465,7 +466,9 @@ async def text_handler(message):
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
         textEN = translator.translate(
             str(message.text), src='ru', dest='en').text
+        print(db.getUsername(message.from_user.id),"/text", message.text)
         response = openaiModel.generateText(textEN)
+        print(textEN)
         if db.getLang(message.from_user.id) == "ru":
             response = translator.translate(response, src='en', dest='ru').text
         await message.answer(response, reply_markup=key)
@@ -477,7 +480,8 @@ async def text_handler(message):
         await message.answer("Для того чтобы делать запросы далее вы должны стать Premium пользователем"
                              "для этого пришлите команду /pay")
 
-def updateUser(telegramId,username):
+
+def updateUser(telegramId, username):
     db.updateUsername(telegramId, username)
     if db.getUser(telegramId)["subscriptionEndDate"] < time.time():
         db.updateSubscriptionType(telegramId, dbModel.SUBSCRIPTION_FREE)
