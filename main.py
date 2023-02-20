@@ -1,6 +1,4 @@
 # самописное
-import os
-
 import dbModel
 import openaiModel
 import secret_keys
@@ -32,12 +30,13 @@ from aiogram.types.message import ContentType
 
 
 PLAYLIST_SIZE = defs.PLAYLIST_SIZE
+ONE_MONTH = 2592000
 
 logging.basicConfig(level=logging.INFO)
 bot = aiogram.Bot(token=secret_keys.telegram)  # создаем бота
 dispatcher = aiogram.Dispatcher(bot, storage=MemoryStorage())  # что это
 PRICE = aiogram.types.LabeledPrice(
-    label="Подписка на 1 месяц", amount=500*100)  # что это
+    label="Подписка на 1 месяц", amount=249*100)  # что это
 
 
 def rate_limit(limit: int, key=None):
@@ -171,10 +170,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     )
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.switchLang(callback_query.from_user.id, "ru")
-    await bot.send_message(callback_query.from_user.id, "Готово! Теперь ответы бота будут на русском языке,"
-                           "вы можете попросить его решить вам домашку, написать сочинение, или рассказать о чем-то простыми словами\n"
-                           " eсли хотите изменить язык, то выбирите другой язык "
-                           "в всплывающей клавиатуре или перейдите в /settings", reply_markup=keyboard)
+    await bot.send_message(callback_query.from_user.id, open("files/texts/change_lang_eng").read(), reply_markup=keyboard)
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'eng')
@@ -190,10 +186,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     )
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.switchLang(callback_query.from_user.id, "en")
-    await bot.send_message(callback_query.from_user.id, "Готово! Теперь ответы бота будут на английском языке,"
-                           "вы можете попросить бота прислать вам скрипт на любом языке программирования или просто получать ответы на ангийском языке.\n"
-                           " Если хотите изменить язык, то выбирите другой язык "
-                           "в всплывающей клавиатуре или перейдите в /settings", reply_markup=keyboard)
+    await bot.send_message(callback_query.from_user.id, open("files/texts/change_lang_eng").read(), reply_markup=keyboard)
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'cancel_music', state=Stash.music)
@@ -201,6 +194,8 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, 
     await callback_query.answer("Запрос на генерацию музыки отменен")
     await callback_query.message.delete()
     await state.finish()
+
+
 @dispatcher.callback_query_handler(lambda c: c.data == 'cancel_photo', state=Stash.photo)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, state: FSMContext):
     await callback_query.answer("Запрос на генерацию фото отменен")
@@ -269,19 +264,16 @@ async def successful_payment(message: aiogram.types.Message):
 @dispatcher.message_handler(Command('photo'))
 @rate_limit(5, key="photo")
 async def photo_generete(message):
-    if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
-        db.updateSubscriptionType(
-            message.from_user.id, dbModel.SUBSCRIPTION_FREE)
+    updateUser(message.from_user.id, message.from_user.username)
 
-    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
         btn2 = aiogram.types.InlineKeyboardButton(
             "Отменить", callback_data="cancel_photo")
         keyboard = aiogram.types.InlineKeyboardMarkup().add(btn2)
-        await bot.send_message(message.from_user.id, "Пришлите описание картинки",reply_markup=keyboard)
+        await bot.send_message(message.from_user.id, "Пришлите описание картинки", reply_markup=keyboard)
         await Stash.photo.set()
     else:
-        await message.answer("Для того чтобы генерировать картинки, вы должны стать Premium пользователем"
-                             "для этого пришлите команду /pay")
+        await message.answer(open("files/texts/ask_for_become_premium").read())
 
 
 @dispatcher.message_handler(Command("change_musicplayer"))
@@ -299,10 +291,13 @@ async def change_musicplayer(message):
     except KeyError:
         await message.answer("У вас пока не подключен ни один плеер, чтобы его подключить нажмите /premium")
 
+
 @dispatcher.message_handler(Command('premium'))
 async def preium_info(message: types.Message):
-    photo = open(r'D:\gpt\files\photo\__make_her_gold_hair_a8f644a7-5c20-4a91-a034-a892c55a47a4.png', 'rb')
+
+    photo = open("files/photo/__make_her_gold_hair_a8f644a7-5c20-4a91-a034-a892c55a47a4.png", 'rb')
     await message.answer_photo(photo = photo, caption= open("files/texts/premium").read())
+
 
 @dispatcher.message_handler(Command("change_lang"))
 async def change_lang(message):
@@ -334,13 +329,17 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
         await message.answer("Извините, сейчас мы не можем сгенерировать картинку по вашему запросу")
     else:
         await bot.send_photo(message.from_user.id, imageUrl, reply_markup=keyboard)
+        if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_FREE:
+            db.updateFreeRolls(message.from_user.id, db.getUser(
+                message.from_user.id)["freeRolls"]-1)
+            await message.answer("У вас осталось {} бесплатных запросов, чтобы отключить ограничение, купите подписку /pay".format(db.getUser(message.from_user.id)["freeRolls"]))
 
     await state.finish()
 
 
 @dispatcher.message_handler(commands=['start'])
 @rate_limit(5, key='start')
-async def welcome(message:types.Message):
+async def welcome(message: types.Message):
 
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
@@ -353,27 +352,24 @@ async def welcome(message:types.Message):
 
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.addUser(message.from_user.id, message.from_user.username,
-               subscriptionType=dbModel.SUBSCRIPTION_FREE)
-    db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
-    photo = open(r"D:\gpt\files\photo\__make_her_most_realistic_4k_avatar_f0b21111-64c1-48fb-ba7d-6b55f56937ee.png",'rb')
-    await message.answer_photo(photo = photo,caption = open("files/texts/welcome_message").read(), reply_markup=keyboard, parse_mode="Markdown")
+               subscriptionType=dbModel.SUBSCRIPTION_FREE,freeRolls=3)
+    #db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
+    photo = open("./files/photo/__make_her_most_realistic_4k_avatar_f0b21111-64c1-48fb-ba7d-6b55f56937ee.png", 'rb')
+    await message.answer_photo(photo=photo, caption=open("./files/texts/welcome_message",encoding="utf-8").read(), reply_markup=keyboard, parse_mode="Markdown")
 
 
 @dispatcher.message_handler(Command('music'))
 @rate_limit(5, key="music")
 async def music_handler(message):
-    if db.getUser(message.from_user.id)["subscriptionEndDate"] < time.time():
-        db.updateSubscriptionType(
-            message.from_user.id, dbModel.SUBSCRIPTION_FREE)
-    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM:
+    updateUser(message.from_user.id, message.from_user.username)
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
         btn2 = aiogram.types.InlineKeyboardButton(
             "Отменить", callback_data="cancel_music")
-        keyboard = aiogram.types.InlineKeyboardMarkup().add( btn2)
+        keyboard = aiogram.types.InlineKeyboardMarkup().add(btn2)
         await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию", reply_markup=keyboard)
         await Stash.music.set()
     else:
-        await message.answer("Для того чтобы генерировать картинки вы должны стать Premium пользователем"
-                             "для этого пришлите команду /pay")
+        await message.answer(open("files/texts/ask_for_become_premium").read())
 
 
 @dispatcher.message_handler(state=Stash.music)
@@ -428,11 +424,15 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
 
             await status_message.edit_text(f"Делаю плейлист|{str(int(tracksAdded/tracksAll*100))}%")
     url = f'https://music.yandex.ru/users/g0sha5063/playlists/{album.kind}'
-    btn_generatemore = types.InlineKeyboardButton("Сгенерировать еще", callback_data="contiune_generate_music")
+    btn_generatemore = types.InlineKeyboardButton(
+        "Сгенерировать еще", callback_data="contiune_generate_music")
     keyboard = types.InlineKeyboardMarkup().add(btn_generatemore)
     await status_message.delete()
-    await message.answer(f"Ваш плейлист готов: {url}",reply_markup=keyboard)
-
+    await message.answer(f"Ваш плейлист готов: {url}", reply_markup=keyboard)
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_FREE:
+        db.updateFreeRolls(message.from_user.id, db.getUser(
+            message.from_user.id)["freeRolls"]-1)
+        await message.answer("У вас осталось {} бесплатных запросов, чтобы отключить ограничение, купите подписку /pay".format(db.getUser(message.from_user.id)["freeRolls"]))
     await state.finish()
 
 
@@ -445,27 +445,36 @@ async def text_handler(message):
     if message.text == "Сгенерировать фото 🌄":
         await photo_generete(message)
         return
-    if message.text == "Настройки языка ⚙":
+    if message.text == "Настройки языка и музыкальной площадки⚙":
         await settings(message)
         return
     music = types.KeyboardButton("Сгенерировать музыку 🌌")
     photo = types.KeyboardButton("Сгенерировать фото 🌄")
-    sett = types.KeyboardButton("Настройки языка ⚙")
+    sett = types.KeyboardButton("Настройки языка и музыкальной площадки⚙")
     key = types.ReplyKeyboardMarkup(resize_keyboard=True).add(music, photo)
     key.add(sett)
-    db.updateUsername(message.from_user.id, message.from_user.username)
+    updateUser(message.from_user.id, message.from_user.username)
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
+        textEN = translator.translate(
+            str(message.text), src='ru', dest='en').text
+        response = openaiModel.generateText(textEN)
+        if db.getLang(message.from_user.id) == "ru":
+            response = translator.translate(response, src='en', dest='ru').text
+        await message.answer(response, reply_markup=key)
+        if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_FREE:
+            db.updateFreeRolls(message.from_user.id, db.getUser(
+                message.from_user.id)["freeRolls"]-1)
+            await message.answer("У вас осталось {} бесплатных запросов, чтобы отключить ограничение, купите подписку /pay".format(db.getUser(message.from_user.id)["freeRolls"]))
+    else:
+        await message.answer(open("files/texts/ask_for_become_premium").read())
 
-    result = translator.translate(str(message.text), src='ru', dest='en')
+def updateUser(telegramId,username):
+    db.updateUsername(telegramId, username)
+    if db.getUser(telegramId)["subscriptionEndDate"] < time.time():
+        db.updateSubscriptionType(telegramId, dbModel.SUBSCRIPTION_FREE)
 
-    response = openaiModel.generateText(result.text)
-
-
-    if db.getLang(message.from_user.id) == "ru":
-        response = translator.translate(response, src='en', dest='ru').text
-    await message.answer(response, reply_markup=key)
 
 if __name__ == '__main__':
-
     dispatcher.middleware.setup(ThrottlingMiddleware())
     translator = googletrans.Translator()  # переводчик
     client = yandex_music.Client(
