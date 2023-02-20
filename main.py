@@ -1,4 +1,6 @@
 # самописное
+import os
+
 import dbModel
 import openaiModel
 import secret_keys
@@ -285,22 +287,30 @@ async def photo_generete(message):
 @dispatcher.message_handler(Command("change_musicplayer"))
 async def change_musicplayer(message):
     dt = {"YandexMusic": "VkMusic", "VkMusic": "YandexMusic"}
-    player = dt[db.getUser(message.from_user.id)['musicPlayers']]
-    db.removeMusicPlayer(message.from_user.id, db.getUser(
-        message.from_user.id)['musicPlayers'])
-    db.addMusicPlayer(message.from_user.id, player)
+    try:
+        player = dt[db.getUser(message.from_user.id)['musicPlayers']]
+        db.removeMusicPlayer(message.from_user.id, db.getUser(
+            message.from_user.id)['musicPlayers'])
+        db.addMusicPlayer(message.from_user.id, player)
 
-    print(dt[db.getUser(message.from_user.id)['musicPlayers']])
-    dt = {"YandexMusic": "Яндекс музыку", "VkMusic": "Вк Музыку"}
-    await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
+        print(dt[db.getUser(message.from_user.id)['musicPlayers']])
+        dt = {"YandexMusic": "Яндекс музыку", "VkMusic": "Вк Музыку"}
+        await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
+    except KeyError:
+        await message.answer("У вас пока не подключен ни один плеер, чтобы его подключить нажмите /premium")
 
+@dispatcher.message_handler(Command('premium'))
+async def preium_info(message: types.Message):
+    photo = open(r'D:\gpt\files\photo\__make_her_gold_hair_a8f644a7-5c20-4a91-a034-a892c55a47a4.png', 'rb')
+    await message.answer_photo(photo = photo, caption= "Премиум")
 
 @dispatcher.message_handler(Command("change_lang"))
 async def change_lang(message):
     dt = {'en': 'ru', 'ru': 'en'}
     db.switchLang(message.from_user.id, dt[db.getLang(message.from_user.id)])
-    dt = {'ru': "русский", "en": 'английский'}
-    await message.answer(f"Язык успешно сменен на {dt[db.getLang(message.from_user.id)]}")
+    dt = {'ru': open("files/texts/change_lang_russian").read(),
+          "en": open("files/texts/change_lang_eng").read()}
+    await message.answer(dt[db.getLang(message.from_user.id)], parse_mode="Markdown")
 
 
 @dispatcher.message_handler(Command('settings'))
@@ -330,7 +340,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 
 @dispatcher.message_handler(commands=['start'])
 @rate_limit(5, key='start')
-async def welcome(message):
+async def welcome(message:types.Message):
 
     btn_eng = aiogram.types.InlineKeyboardButton(
         text="Aнглийский",
@@ -340,15 +350,13 @@ async def welcome(message):
         text="Руссский",
         callback_data="ru"
     )
+
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.addUser(message.from_user.id, message.from_user.username,
                subscriptionType=dbModel.SUBSCRIPTION_FREE)
     db.updateSubscriptionEndDate(message.from_user.id, 2999999999.999)
-    await message.answer("➖Здравствуй, я твой новый друг, меня зовут Ботти🙃."
-                         "➖В меня загружен весь интернет, поэтому я знаю абсолютно все, до чего в данный момент дошло человечество🌚."
-                         "И я могу стать твоим личным помощником🔥."
-                         "Тебе нужно лишь сформулировать запрос."
-                         "➖ Общайся со мной как с обычным человеком😉, чем подробнее будет запрос, тем шире и понятнее я смогу дать тебе ответ.", reply_markup=keyboard)
+    photo = open(r"D:\gpt\files\photo\__make_her_most_realistic_4k_avatar_f0b21111-64c1-48fb-ba7d-6b55f56937ee.png",'rb')
+    await message.answer_photo(photo = photo,caption = open("files/texts/welcome_message").read(), reply_markup=keyboard, parse_mode="Markdown")
 
 
 @dispatcher.message_handler(Command('music'))
@@ -431,15 +439,20 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
 @dispatcher.message_handler(content_types=['text'])
 @rate_limit(5)
 async def text_handler(message):
-    if message.text == "Сгенерировать музыку":
+    if message.text == "Сгенерировать музыку 🌌":
         await music_handler(message)
         return
-    if message.text == "Сгенерировать фото":
+    if message.text == "Сгенерировать фото 🌄":
         await photo_generete(message)
         return
-    music = types.KeyboardButton("Сгенерировать музыку")
-    photo = types.KeyboardButton("Сгенерировать фото")
+    if message.text == "Настройки языка ⚙":
+        await settings(message)
+        return
+    music = types.KeyboardButton("Сгенерировать музыку 🌌")
+    photo = types.KeyboardButton("Сгенерировать фото 🌄")
+    sett = types.KeyboardButton("Настройки языка ⚙")
     key = types.ReplyKeyboardMarkup(resize_keyboard=True).add(music, photo)
+    key.add(sett)
     db.updateUsername(message.from_user.id, message.from_user.username)
 
     result = translator.translate(str(message.text), src='ru', dest='en')
