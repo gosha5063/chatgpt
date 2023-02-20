@@ -302,7 +302,7 @@ async def change_musicplayer(message):
 @dispatcher.message_handler(Command('premium'))
 async def preium_info(message: types.Message):
     photo = open(r'D:\gpt\files\photo\__make_her_gold_hair_a8f644a7-5c20-4a91-a034-a892c55a47a4.png', 'rb')
-    await message.answer_photo(photo = photo, caption= "Премиум")
+    await message.answer_photo(photo = photo, caption= open("files/texts/premium").read())
 
 @dispatcher.message_handler(Command("change_lang"))
 async def change_lang(message):
