@@ -6,6 +6,10 @@ SUBSCRIPTION_ADMIN = 0
 SUBSCRIPTION_FREE = 1
 SUBSCRIPTION_PREM = 2
 
+# время в секундах
+MONTH = 2592000
+DAY = 86400
+
 
 class DBModel:  # объект БД
     # коды ошибок
@@ -21,8 +25,9 @@ class DBModel:  # объект БД
 
     # название таблиц
     usersTable = "users"
-
     memoryTable = "memory"
+    rerollsTable = "rerolls"
+    queriesTable = "queries"
 
     # коннект курсор
     con, cur = None, None
@@ -73,15 +78,17 @@ class DBModel:  # объект БД
         if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) != 0:
             return self.TELEGRAM_ID_ALREADY_EXISTS
         now = time.time()
-        month = 2592000  # seconds
         endDate = 0
         if subscriptionType == SUBSCRIPTION_PREM:
-            endDate = now+month
+            endDate = now+MONTH
         musicPlayers = " ".join(musicPlayers)
         # добавляем строку
         self.cur.execute(
             "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
-        self.cur.execute("INSERT INTO {} VALUES ({},'');".format(self.memoryTable, telegramId))
+        self.cur.execute("INSERT INTO {} VALUES ({},'');".format(
+            self.memoryTable, telegramId))
+        self.cur.execute("INSERT INTO {} VALUES ({},{});".format(
+            self.rerollsTable, telegramId, now))
         self.con.commit()  # коммит
         return self.OK
 
@@ -228,6 +235,29 @@ class DBModel:  # объект БД
             'UPDATE {} SET prevMessages="" WHERE telegramId={};'.format(self.memoryTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
+
+    @checkDB
+    def addQuery(self, telegramId, requestType, request, response, requestTime=time.time()):
+        request = normalizeText(request)
+        response = normalizeText(response)
+        self.cur.execute('INSERT INTO {} VALUES ({},{},"{}","{}","{}");'.format(
+            self.queriesTable, telegramId, requestTime, requestType, request, response))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def reroll(self, telegramId, rerolls=10):
+        lastReroll = self.cur.execute(
+            'SELECT lastReroll from "{}" WHERE telegramId={};'.format(self.rerollsTable, telegramId)).fetchone()[0]
+        if time.time()-lastReroll >= DAY:
+            self.cur.execute(
+                'UPDATE {} SET freeRolls={} WHERE telegramId={};'.format(self.usersTable, rerolls, telegramId))
+            self.cur.execute(
+                'UPDATE {} SET lastReroll={} WHERE telegramId={};'.format(self.rerollsTable, time.time(), telegramId))
+            self.con.commit()  # коммит
+            return True
+        return False
 
 
 def normalizeText(text):
