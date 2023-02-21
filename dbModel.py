@@ -69,7 +69,6 @@ class DBModel:  # объект БД
 
     @checkDB
     def addUser(self, telegramId, username, subscriptionType=SUBSCRIPTION_FREE, freeRolls=10, musicPlayers=[], lang="ru"):
-
         # если строка с таким айди уже есть
         if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) != 0:
             return self.TELEGRAM_ID_ALREADY_EXISTS
@@ -82,8 +81,7 @@ class DBModel:  # объект БД
         # добавляем строку
         self.cur.execute(
             "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
-        self.cur.execute(
-            "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
+        self.cur.execute("INSERT INTO {} VALUES ({},'');".format(self.memoryTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
 

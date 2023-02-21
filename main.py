@@ -263,14 +263,14 @@ async def successful_payment(message: aiogram.types.Message):
 async def photo_generete(message):
     updateUser(message.from_user.id, message.from_user.username)
 
-    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] >= 2:
         btn2 = aiogram.types.InlineKeyboardButton(
             "Отменить", callback_data="cancel_photo")
         keyboard = aiogram.types.InlineKeyboardMarkup().add(btn2)
         await bot.send_message(message.from_user.id, "Пришлите описание картинки", reply_markup=keyboard)
         await Stash.photo.set()
     else:
-        await message.answer(open("files/texts/ask_for_become_premium").read())
+        await message.answer(open("files/texts/ask_for_become_premium",encoding="utf-8").read())
 
 """Этот код является обработчиком обратного вызова для кнопки в чат-боте Telegram.
  При нажатии кнопки код проверяет пользователя в базе данных, чтобы узнать, 
@@ -345,7 +345,7 @@ async def settings(message: types.Message):
         btn_change_lang, btn_change_music_player)
     dt_lang = {'ru':"Русский",'en':"Английский"}
     dt_player = {"YandexMusic": "Яндекс Музыка", "VkMusic":"Вк Музыка","":"Не выбрано"}
-    await message.answer(open("files/texts/settings").read().format(dt_lang[db.getUser(message.from_user.id)["lang"]],
+    await message.answer(open("files/texts/settings", encoding="utf-8").read().format(dt_lang[db.getUser(message.from_user.id)["lang"]],
             dt_player[db.getUser(message.from_user.id)["musicPlayers"]]),parse_mode="Markdown", reply_markup=keyboard)
 
 
@@ -370,7 +370,7 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
         imageUrl = openaiModel.generatePhoto(textEN)
     except:
         await message.answer(
-            open("files/texts/server_error").read())
+            open("files/texts/server_error", encoding="utf-8").read())
         await state.finish()
         return
     print(imageUrl)
@@ -423,14 +423,14 @@ async def welcome(message: types.Message):
 @rate_limit(5, key="music")
 async def music_handler(message):
     updateUser(message.from_user.id, message.from_user.username)
-    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] >= 4:
         btn2 = aiogram.types.InlineKeyboardButton(
             "Отменить", callback_data="cancel_music")
         keyboard = aiogram.types.InlineKeyboardMarkup().add(btn2)
         await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию", reply_markup=keyboard)
         await Stash.music.set()
     else:
-        await message.answer(open("files/texts/ask_for_become_premium").read())
+        await message.answer(open("files/texts/ask_for_become_premium", encoding="utf-8").read())
 
 
 """Этот код создает список воспроизведения с заданным именем и добавляет в него треки на основе заданных параметров. Во-первых, он получает имя пользователя и выводит его на консоль. Затем он отправляет сообщение пользователю, которое соответствует его описанию.
@@ -453,9 +453,9 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
         print(textEN)
         try:
             rawText = openaiModel.generateText(
-                f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=2048)
+                f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=4096)
         except:
-            await message.answer(open("files/texts/server_error").read())
+            await message.answer(open("files/texts/server_error", encoding="utf-8").read())
             await state.finish()
             return
         songsDict = defs.parseTracks(rawText)
@@ -524,7 +524,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 Наконец, если у пользователя нет премиум-подписки или бесплатных роликов, пользователю отправляется сообщение с просьбой стать премиум-участником с разметкой клавиатуры"""
 
 async def send_info(message: types.Message):
-    await message.answer(open("files/texts/info_about_us").read())
+    await message.answer(open("files/texts/info_about_us", encoding="utf-8").read())
 
 
 """This code is a text handler for an AI chatbot. It processes user inputs and responds accordingly.
@@ -554,7 +554,7 @@ async def text_handler(message: types.Message):
         "Новая тема", callback_data="btn_new_theme")
     key = types.InlineKeyboardMarkup().add(btn_new_theme)
     updateUser(message.from_user.id, message.from_user.username)
-    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
+    if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] >= 1:
         textEN = translator.translate(
             str(message.text), src='ru', dest='en').text
         print(db.getUsername(message.from_user.id), "/text", message.text)
@@ -567,7 +567,7 @@ async def text_handler(message: types.Message):
             db.addMemory(message.from_user.id, textEN+"\nAI: "+response+"\nHuman: ")
         except Exception as e:
             print(e)
-            await message.answer(open("files/texts/server_error").read())
+            await message.answer(open("files/texts/server_error", encoding="utf-8").read())
             return
         print(textEN)
         if db.getLang(message.from_user.id) == "ru":
