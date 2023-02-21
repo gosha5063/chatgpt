@@ -32,8 +32,5 @@ def generateText(text, model="text-davinci-003", temperature=0.8, max_tokens=102
 
 
 def continueConversation(prev, question):
-    generateText(text)
-
-
-def newConversation(question):
-    return continueConversation(startConversationText+question)
+    response = generateText(prev+question+"\nAI: ")
+    return response

@@ -206,11 +206,12 @@ class DBModel:  # объект БД
     @checkDB
     @checkUserExist
     def addMemory(self, telegramId, text):
+        text = normalizeText(text)
         memory = self.cur.execute(
-            'SELECT memory from "{}" WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
+            'SELECT prevMessages from "{}" WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
         memory += text
         self.cur.execute(
-            'UPDATE {} SET memory="{}" WHERE telegramId={};'.format(self.memoryTable, memory, telegramId))
+            'UPDATE {} SET prevMessages="{}" WHERE telegramId={};'.format(self.memoryTable, memory, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
@@ -218,13 +219,13 @@ class DBModel:  # объект БД
     @checkUserExist
     def getMemory(self, telegramId):
         return self.cur.execute(
-            'SELECT memory from "{}" WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
+            'SELECT prevMessages from "{}" WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
 
     @checkDB
     @checkUserExist
     def clearMemory(self, telegramId):
         self.cur.execute(
-            'UPDATE {} SET memory="" WHERE telegramId={};'.format(self.memoryTable, telegramId))
+            'UPDATE {} SET prevMessages="" WHERE telegramId={};'.format(self.memoryTable, telegramId))
         self.con.commit()  # коммит
         return self.OK
 
