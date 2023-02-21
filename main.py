@@ -275,7 +275,7 @@ async def process_callback_button1(message: aiogram.types.CallbackQuery):
         dt = {"YandexMusic": "Яндекс музыку", "VkMusic": "Вк Музыку"}
         await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
     except KeyError:
-        await bot.send_message(message.from_user.id,"У вас пока не подключен ни один плеер, чтобы его подключить нажмите /premium")
+        await bot.send_message(message.from_user.id,"У вас пока не подключен ни один плеер, чтобы его подключить нажмите /premium",reply_markup=None)
 
 
 @dispatcher.message_handler(Command('premium'))
@@ -291,7 +291,8 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     db.switchLang(callback_query.from_user.id, dt[db.getLang(callback_query.from_user.id)])
     dt = {'ru': open("./files/texts/change_lang_russian",encoding="utf-8").read(),
           "en": open("./files/texts/change_lang_eng",encoding="utf-8").read()}
-    await bot.send_message(callback_query.from_user.id,dt[db.getLang(callback_query.from_user.id)], parse_mode="Markdown")
+
+    await bot.send_message(callback_query.from_user.id,dt[db.getLang(callback_query.from_user.id)], parse_mode="Markdown",reply_markup=None)
 
 
 @dispatcher.message_handler(Command('settings'))
@@ -359,7 +360,7 @@ async def welcome(message: types.Message):
     music = types.KeyboardButton("Сгенерировать музыку 🌌")
     photo = types.KeyboardButton("Сгенерировать фото 🌄")
     sett = types.KeyboardButton("Настройки языка и музыкальной площадки⚙")
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,is_persistent = False).add(music, photo)
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False,is_persistent = False).add(music, photo)
     keyboard.add(sett)
 
     db.addUser(message.from_user.id, message.from_user.username,

@@ -21,7 +21,7 @@ class DBModel:  # объект БД
 
     # название таблиц
     usersTable = "users"
-
+    memory = ""
     # коннект курсор
     con, cur = None, None
 
