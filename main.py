@@ -126,7 +126,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     await music_handler(callback_query)
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
-
+"""Кнопка для обработки русского"""
 @dispatcher.callback_query_handler(lambda c: c.data == 'ru')
 @rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
@@ -140,7 +140,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     )
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.switchLang(callback_query.from_user.id, "ru")
-    await bot.send_message(callback_query.from_user.id, open("files/texts/change_lang_russian",encoding="utf-8").read(), reply_markup=keyboard)
+    await bot.send_message(callback_query.from_user.id, open("files/texts/change_lang_russian",encoding="utf-8").read(), reply_markup=keyboard, parse_mode="Markdown")
 
 """#Этот код определяет две кнопки InlineKeyboardButton,
  одну для английского и одну для русского, и присваивает 
@@ -161,7 +161,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     )
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.switchLang(callback_query.from_user.id, "en")
-    await bot.send_message(callback_query.from_user.id, open("files/texts/change_lang_eng",encoding="utf-8").read(), reply_markup=keyboard)
+    await bot.send_message(callback_query.from_user.id, open("files/texts/change_lang_eng",encoding="utf-8").read(), reply_markup=keyboard, parse_mode="Markdown")
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'cancel_music', state=Stash.music)
@@ -318,7 +318,13 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
     btn_photo = aiogram.types.InlineKeyboardButton(
         "Сгенерировать еще фото", callback_data='photo_one_more')
     keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_photo)
-    imageUrl = openaiModel.generatePhoto(textEN)
+    try:
+        imageUrl = openaiModel.generatePhoto(textEN)
+    except:
+        await message.answer(
+            "Извините, сейчас сервера OpenAI недоступны, мы сообщим, когда они снова заработают в нашей группе: url")
+        await state.finish()
+        return
     print(imageUrl)
     if imageUrl == None:
         await message.answer("Извините ваш запрос содержит неприемлемый запрос, сейчас мы не можем сгенерировать такую картинку")
@@ -395,9 +401,13 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
             str(message.text), src='ru', dest='en').text
         await state.update_data(music=message.text)
         print(textEN)
-        rawText = openaiModel.generateText(
-            f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=2048)
-
+        try:
+            rawText = openaiModel.generateText(
+                f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=2048)
+        except:
+            await message.answer("Извините, сейчас сервера OpenAI недоступны, мы сообщим, когда они снова заработают в нашей группе: url")
+            await state.finish()
+            return
         songsDict = defs.parseTracks(rawText)
         print(songsDict)
     tracksAdded = 0
@@ -476,7 +486,11 @@ async def text_handler(message):
         textEN = translator.translate(
             str(message.text), src='ru', dest='en').text
         print(db.getUsername(message.from_user.id),"/text", message.text)
-        response = openaiModel.generateText(textEN)
+        try:
+            response = openaiModel.generateText(textEN)
+        except:
+            await message.answer("Извините, сейчас сервера OpenAI недоступны, мы сообщим, когда они снова заработают в нашей группе: url")
+            return
         print(textEN)
         if db.getLang(message.from_user.id) == "ru":
             response = translator.translate(response, src='en', dest='ru').text

@@ -14,7 +14,7 @@ import time
 import yandex_music
 
 import googletrans
-
+import openai
 import aiogram
 import aiogram.bot.api
 from aiogram import Bot, Dispatcher, executor, types
