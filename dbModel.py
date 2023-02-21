@@ -21,7 +21,9 @@ class DBModel:  # объект БД
 
     # название таблиц
     usersTable = "users"
-    memory = ""
+
+    memoryTable = "memory"
+
     # коннект курсор
     con, cur = None, None
 
@@ -67,6 +69,7 @@ class DBModel:  # объект БД
 
     @checkDB
     def addUser(self, telegramId, username, subscriptionType=SUBSCRIPTION_FREE, freeRolls=10, musicPlayers=[], lang="ru"):
+
         # если строка с таким айди уже есть
         if len(self.cur.execute("SELECT * FROM {} WHERE telegramId={};".format(self.usersTable, telegramId)).fetchall()) != 0:
             return self.TELEGRAM_ID_ALREADY_EXISTS
@@ -77,6 +80,8 @@ class DBModel:  # объект БД
             endDate = now+month
         musicPlayers = " ".join(musicPlayers)
         # добавляем строку
+        self.cur.execute(
+            "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
         self.cur.execute(
             "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
         self.con.commit()  # коммит
@@ -184,9 +189,8 @@ class DBModel:  # объект БД
     @checkDB
     @checkUserExist
     def getLang(self, telegramId):
-        lang = self.cur.execute(
+        return self.cur.execute(
             'SELECT lang from "{}" WHERE telegramId={};'.format(self.usersTable, telegramId)).fetchone()[0]
-        return lang
 
     @checkDB
     @checkUserExist
@@ -198,9 +202,34 @@ class DBModel:  # объект БД
     @checkDB
     @checkUserExist
     def getUsername(self, telegramId):
-        username = self.cur.execute(
+        return self.cur.execute(
             'SELECT username from "{}" WHERE telegramId={};'.format(self.usersTable, telegramId)).fetchone()[0]
-        return username
+
+    @checkDB
+    @checkUserExist
+    def addMemory(self, telegramId, text):
+        text = normalizeText(text)
+        memory = self.cur.execute(
+            'SELECT prevMessages from "{}" WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
+        memory += text
+        self.cur.execute(
+            'UPDATE {} SET prevMessages="{}" WHERE telegramId={};'.format(self.memoryTable, memory, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def getMemory(self, telegramId):
+        return self.cur.execute(
+            'SELECT prevMessages from "{}" WHERE telegramId={};'.format(self.memoryTable, telegramId)).fetchone()[0]
+
+    @checkDB
+    @checkUserExist
+    def clearMemory(self, telegramId):
+        self.cur.execute(
+            'UPDATE {} SET prevMessages="" WHERE telegramId={};'.format(self.memoryTable, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
 
 
 def normalizeText(text):
