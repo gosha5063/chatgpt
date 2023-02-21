@@ -348,16 +348,20 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 @rate_limit(5, key='start')
 async def welcome(message: types.Message):
 
-    btn_eng = aiogram.types.InlineKeyboardButton(
-        text="Aнглийский",
-        callback_data="eng"
-    )
-    btn_rus = aiogram.types.InlineKeyboardButton(
-        text="Руссский",
-        callback_data="ru"
-    )
+    # btn_eng = aiogram.types.InlineKeyboardButton(
+    #     text="Aнглийский",
+    #     callback_data="eng"
+    # )
+    # btn_rus = aiogram.types.InlineKeyboardButton(
+    #     text="Руссский",
+    #     callback_data="ru"
+    # )
+    music = types.KeyboardButton("Сгенерировать музыку 🌌")
+    photo = types.KeyboardButton("Сгенерировать фото 🌄")
+    sett = types.KeyboardButton("Настройки языка и музыкальной площадки⚙")
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,is_persistent = False).add(music, photo)
+    keyboard.add(sett)
 
-    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_eng, btn_rus)
     db.addUser(message.from_user.id, message.from_user.username,
                subscriptionType=dbModel.SUBSCRIPTION_FREE, freeRolls=10)
     photo = open(
@@ -459,6 +463,19 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
 
     await state.finish()
 
+
+"""ТЗ ДЛЯ ВАЛЕРЫ"""
+@dispatcher.callback_query_handler(lambda c: c.data == 'btn_new_theme')
+@rate_limit(5)
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    """здесь прописать очищение memory"""
+    await callback_query.message.edit_reply_markup(reply_markup=None)
+@dispatcher.callback_query_handler(lambda c: c.data == 'btn_contiune')
+@rate_limit(5)
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    """здесь прописать добавление предыдущего запроса с ответом бота и вызов генерации текста с новым сообщением"""
+    await callback_query.message.edit_reply_markup(reply_markup=None)
+
 """Этот код начинается с набора операторов if, которые проверяют, соответствует ли текстовое сообщение, полученное пользователем, «Создать музыку 🌌», «Создать фото 🌄» или «Настройки языка и музыкальной платформы⚙️». В зависимости от полученного текстового сообщения вызывается соответствующая функция (music_handler, photo_generate или settings).
 После операторов if создается кнопка клавиатуры, содержащая текст «Создать музыку 🌌», «Создать фото 🌄» и «Настройки языка и музыкального заведения⚙️». Затем клавиатура добавляется к разметке клавиатуры ответа.
 Данные пользователя (включая его идентификатор и имя пользователя) затем обновляются в базе данных.
@@ -476,11 +493,9 @@ async def text_handler(message):
     if message.text == "Настройки языка и музыкальной площадки⚙":
         await settings(message)
         return
-    music = types.KeyboardButton("Сгенерировать музыку 🌌")
-    photo = types.KeyboardButton("Сгенерировать фото 🌄")
-    sett = types.KeyboardButton("Настройки языка и музыкальной площадки⚙")
-    key = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,is_persistent = False).add(music, photo)
-    key.add(sett)
+    btn_new_theme = types.InlineKeyboardButton("Общаться на новую тему",callback_data="btn_new_theme")
+    btn_contiune = types.InlineKeyboardButton("Уточнить предыдущий ответ",callback_data="btn_contiune")
+    key = types.InlineKeyboardMarkup().add(btn_new_theme,btn_contiune)
     updateUser(message.from_user.id, message.from_user.username)
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] > 0:
         textEN = translator.translate(
