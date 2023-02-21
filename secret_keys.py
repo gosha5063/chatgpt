@@ -1,4 +1,4 @@
-telegram = "5764638506:AAHT7fL7X_uqUC3hLH6K0IB0MytckaojQpk"
+telegram = "5764638506:AAGS8tfgeMaS7jrs1BSmy8VvaCSbZJR9bvo"
 yandexMusic = "AQAAAABUEq_5AAG8XleghLapBUvLj7OPKJ2ooDg"
 openai = "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"
 vkMusic = ""

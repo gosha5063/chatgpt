@@ -1,3 +1,5 @@
+import types
+
 from imports import *
 
 
@@ -133,8 +135,9 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 @dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music')
 @rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
-    await music_handler(callback_query)
     await callback_query.message.edit_reply_markup(reply_markup=None)
+    await music_handler(callback_query)
+
 
 """Кнопка для обработки русского"""
 
@@ -196,6 +199,10 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery, 
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     await photo_generete(callback_query)
     await callback_query.message.edit_reply_markup(reply_markup=None)
+@dispatcher.callback_query_handler(lambda c: c.data == 'photo_one_more_None')
+async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
+    await callback_query.message.delete()
+    await photo_generete(callback_query)
 
 
 @dispatcher.message_handler(commands=['pay'])
@@ -260,7 +267,7 @@ async def successful_payment(message: aiogram.types.Message):
 
 @dispatcher.message_handler(Command('photo'))
 @rate_limit(5, key="photo")
-async def photo_generete(message):
+async def photo_generete(message:types.Message):
     updateUser(message.from_user.id, message.from_user.username)
 
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_PREM or db.getUser(message.from_user.id)['freeRolls'] >= 2:
@@ -270,7 +277,7 @@ async def photo_generete(message):
         await bot.send_message(message.from_user.id, "Пришлите описание картинки", reply_markup=keyboard)
         await Stash.photo.set()
     else:
-        await message.answer(open("files/texts/ask_for_become_premium",encoding="utf-8").read())
+        await bot.send_message(message.from_user.id,open("files/texts/ask_for_become_premium",encoding="utf-8").read().format(db.getUser(message.from_user.id)["freeRolls"]))
 
 """Этот код является обработчиком обратного вызова для кнопки в чат-боте Telegram.
  При нажатии кнопки код проверяет пользователя в базе данных, чтобы узнать, 
@@ -375,9 +382,18 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
         return
     print(imageUrl)
     if imageUrl == None:
-        await message.answer("Извините ваш запрос содержит неприемлемый запрос, сейчас мы не можем сгенерировать такую картинку")
+        btn = types.InlineKeyboardButton("Попробовать еще раз", callback_data= "photo_one_more_None")
+        key = types.InlineKeyboardMarkup()
+        key.add(btn)
+        await message.answer("Извините, ваш запрос содержит неприемлемую тему."
+                             "\nСейчас мы не можем сгенерировать такую картинку\n"
+                             "❗Ваш запрос прерван",reply_markup=key)
+
     else:
-        await bot.send_photo(message.from_user.id, imageUrl, reply_markup=keyboard)
+        try:
+            await bot.send_photo(message.from_user.id, imageUrl, reply_markup=keyboard)
+        except:
+            await message.answer(open("files/texts/error",encoding="utf-8").read())
         print(imageUrl)
         if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_FREE:
             db.updateFreeRolls(message.from_user.id, db.getUser(
@@ -399,7 +415,7 @@ async def welcome(message: types.Message):
     photo = types.KeyboardButton("Сгенерировать фото 🌄")
     setting = types.KeyboardButton("Настройки⚙")
     about_us = types.KeyboardButton("Наша группа🦋")
-    premium = types.KeyboardButton("Премиум🔸")
+    premium = types.KeyboardButton("Премиум🔥")
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False,is_persistent = False).add(music, photo)
     keyboard.add(setting,about_us)
     keyboard.add(premium)
@@ -430,7 +446,7 @@ async def music_handler(message):
         await bot.send_message(message.from_user.id, "Напишите что бы вы хотели послушать, не бойтесь проявлять фантазию", reply_markup=keyboard)
         await Stash.music.set()
     else:
-        await message.answer(open("files/texts/ask_for_become_premium", encoding="utf-8").read())
+        await bot.send_message(message.from_user.id,open("files/texts/ask_for_become_premium", encoding="utf-8").read().format(db.getUser(message.from_user.id)["freeRolls"]))
 
 
 """Этот код создает список воспроизведения с заданным именем и добавляет в него треки на основе заданных параметров. Во-первых, он получает имя пользователя и выводит его на консоль. Затем он отправляет сообщение пользователю, которое соответствует его описанию.
@@ -453,8 +469,8 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
         print(textEN)
         try:
             rawText = openaiModel.generateText(
-                f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=4096)
-        except:
+                f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=300)
+        except :
             await message.answer(open("files/texts/server_error", encoding="utf-8").read())
             await state.finish()
             return
@@ -501,7 +517,10 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
         "Сгенерировать еще", callback_data="contiune_generate_music")
     keyboard = types.InlineKeyboardMarkup().add(btn_generatemore)
     await status_message.delete()
-    await message.answer(f"Ваш плейлист готов: {url}", reply_markup=keyboard)
+    try:
+        await message.answer(f"Ваш плейлист готов: {url}", reply_markup=keyboard)
+    except:
+        await message.answer(open("files/texts/error",encoding="utf-8").read())
     print(url)
     if db.getUser(message.from_user.id)['subscriptionType'] == dbModel.SUBSCRIPTION_FREE:
         db.updateFreeRolls(message.from_user.id, db.getUser(
@@ -577,7 +596,7 @@ async def text_handler(message: types.Message):
             db.updateFreeRolls(message.from_user.id, db.getUser(
                 message.from_user.id)["freeRolls"]-1)
     else:
-        await message.reply(open("files/texts/ask_for_become_premium", encoding="utf-8").read())
+        await message.reply(open("files/texts/ask_for_become_premium", encoding="utf-8").read().format(db.getUser(message.from_user.id)["freeRolls"]))
 
 
 def updateUser(telegramId, username):
