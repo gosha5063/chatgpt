@@ -1,4 +1,6 @@
 # самописное
+import itunes as itunes
+
 import dbModel
 import openaiModel
 import secret_keys
@@ -11,8 +13,8 @@ import asyncio
 import time
 
 # паблик либрариес
-import yandex_music
 
+import yandex_music
 import googletrans
 import openai
 import aiogram

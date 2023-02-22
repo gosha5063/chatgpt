@@ -1,5 +1,5 @@
-telegram = "5764638506:AAGS8tfgeMaS7jrs1BSmy8VvaCSbZJR9bvo"
+telegram = "6168592912:AAHls4GLw1TN3C45EJwpkw3O4po9syvZMKg"
 yandexMusic = "AQAAAABUEq_5AAG8XleghLapBUvLj7OPKJ2ooDg"
 openai = "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"
 vkMusic = ""
-paymentTextToken = "381764678:TEST:50614"
+paymentTextToken = "381764678:TEST:51083"

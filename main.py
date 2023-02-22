@@ -116,20 +116,11 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     db.clearMusicPlayer(callback_query.from_user.id)
     db.addMusicPlayer(callback_query.from_user.id, 'YandexMusic')
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Яндекс музка\n"
-                                                        "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
-
-"""сменить плеер на ВК"""
+    await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Яндекс музыка\n"
+                                                        "теперь вы можете получать ссылки на плейлисты созданные под ваше настроение")
 
 
-@dispatcher.callback_query_handler(lambda c: c.data == 'btn_VK')
-@rate_limit(5)
-async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
-    db.clearMusicPlayer(callback_query.from_user.id)
-    db.addMusicPlayer(callback_query.from_user.id, 'VkMusic')
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "Вы приобрели Premium!! Спасибо за доверие, выбранная площадка: Вконтакте музка\n"
-                           "теперь вы можете получать ссылки на плейлисты созднанные под ваше настроение")
+
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music')
@@ -243,20 +234,11 @@ async def successful_payment(message: aiogram.types.Message):
     db.updateSubscriptionType(message.from_user.id,
                               newSubscriptionType=dbModel.SUBSCRIPTION_PREM)
     db.updateSubscriptionEndDate(message.from_user.id, time.time()+ONE_MONTH)
-
-    payment_info = message.successful_payment.to_python()
-    btn_Yandex = aiogram.types.InlineKeyboardButton(
-        "Яндекс Музыка", callback_data='btn_Yandex')
-    btn_VK = aiogram.types.InlineKeyboardButton(
-        "Вк Музыка", callback_data='btn_VK')
-    keyboard = aiogram.types.InlineKeyboardMarkup().add(btn_Yandex, btn_VK)
-    print(message.from_user.username, "/pay")
-    for k, v in payment_info.items():
-        print(f"{k} = {v}")
+    db.clearMusicPlayer(message.from_user.id)
 
     await bot.send_message(message.chat.id,
                            f"Платеж на сумму {message.successful_payment.total_amount // 100} {message.successful_payment.currency} прошел успешно!!!\n"
-                           f"Выберите площадку на которой вы слушаете музыку", reply_markup=keyboard)
+                           f"Спасибо за доверие! Тепреь вы можете безлимитно все далать")
 
 """# This code creates a message handler for the command 'photo'
  and adds a rate limit of 5 per key. If the user's subscription 
@@ -292,25 +274,6 @@ async def process_callback_button1(message: aiogram.types.CallbackQuery):
     await message.message.delete()
     await preium_info(message.message)
 
-@dispatcher.callback_query_handler(lambda c: c.data == 'btn_change_music_player')
-async def process_callback_button1(message: aiogram.types.CallbackQuery):
-    dt = {"YandexMusic": "VkMusic", "VkMusic": "YandexMusic"}
-    await message.message.edit_reply_markup(reply_markup=None)
-    await message.message.delete()
-    try:
-        player = dt[db.getUser(message.from_user.id)['musicPlayers']]
-        db.removeMusicPlayer(message.from_user.id, db.getUser(
-            message.from_user.id)['musicPlayers'])
-        db.addMusicPlayer(message.from_user.id, player)
-
-        dt = {"YandexMusic": "Яндекс музыку", "VkMusic": "Вк Музыку"}
-
-        await message.answer(f"Плеер успешно сменен на {dt[db.getUser(message.from_user.id)['musicPlayers']]}")
-    except KeyError:
-        btn = types.InlineKeyboardButton("Премиум",callback_data="premium")
-        keyboard = types.InlineKeyboardMarkup().add(btn)
-
-        await bot.send_message(message.from_user.id,"У вас пока не подключен ни один плеер,\n чтобы он стал доступен - нажмите на кнопку под сообщением",reply_markup=keyboard)
 
 
 @dispatcher.callback_query_handler(lambda c: c.data == 'pay_premium')
@@ -338,22 +301,19 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
           "en": open("./files/texts/change_lang_eng", encoding="utf-8").read()}
     await callback_query.message.delete()
     await bot.send_message(callback_query.from_user.id, dt[db.getLang(callback_query.from_user.id)], parse_mode="Markdown")
-    await callback_query.message.edit_reply_markup(reply_markup=None)
+
 
 
 
 @dispatcher.message_handler(Command('settings'))
-async def settings(message: types.Message):
-    btn_change_lang = types.InlineKeyboardButton(
-        "Сменить язык ответа", callback_data="btn_change_lang")
-    btn_change_music_player = types.InlineKeyboardButton(
-        "Сменить площадку", callback_data="btn_change_music_player")
-    keyboard = types.InlineKeyboardMarkup().add(
-        btn_change_lang, btn_change_music_player)
-    dt_lang = {'ru':"Русский",'en':"Английский"}
-    dt_player = {"YandexMusic": "Яндекс Музыка", "VkMusic":"Вк Музыка","":"Не выбрано"}
-    await message.answer(open("files/texts/settings", encoding="utf-8").read().format(dt_lang[db.getUser(message.from_user.id)["lang"]],
-            dt_player[db.getUser(message.from_user.id)["musicPlayers"]]),parse_mode="Markdown", reply_markup=keyboard)
+async def settings(callback_query: types.Message):
+    dt = {'en': 'ru', 'ru': 'en'}
+    db.switchLang(callback_query.from_user.id,
+                  dt[db.getLang(callback_query.from_user.id)])
+    dt = {'ru': open("./files/texts/change_lang_russian", encoding="utf-8").read(),
+          "en": open("./files/texts/change_lang_eng", encoding="utf-8").read()}
+    await bot.send_message(callback_query.from_user.id, dt[db.getLang(callback_query.from_user.id)], parse_mode="Markdown")
+
 
 
 """Этот код печатает имя пользователя и текст, отправленный через сообщение.
@@ -410,10 +370,9 @@ async def photo_answer(message: aiogram.types.Message, state: FSMContext):
 @dispatcher.message_handler(commands=['start'])
 @rate_limit(5, key='start')
 async def welcome(message: types.Message):
-
     music = types.KeyboardButton("Сгенерировать музыку 🌌")
     photo = types.KeyboardButton("Сгенерировать фото 🌄")
-    setting = types.KeyboardButton("Настройки⚙")
+    setting = types.KeyboardButton("Сменить язык⚙")
     about_us = types.KeyboardButton("Наша группа🦋")
     premium = types.KeyboardButton("Премиум🔥")
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False,is_persistent = False).add(music, photo)
@@ -560,7 +519,7 @@ async def text_handler(message: types.Message):
     if message.text == "Сгенерировать фото 🌄":
         await photo_generete(message)
         return
-    if message.text == "Настройки⚙":
+    if message.text == "Сменить язык⚙":
         await settings(message)
         return
     if message.text == "Наша группа🦋":
@@ -612,6 +571,7 @@ if __name__ == '__main__':
         secret_keys.yandexMusic).init()  # клиент яндекс музыки
     db = dbModel.DBModel()  # даза банных
     db.connect()
+
     aiogram.executor.start_polling(
         dispatcher, skip_updates=True)  # веч цикл телеграм бота
     db.close()
