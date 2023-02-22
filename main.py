@@ -120,9 +120,6 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
                                                         "теперь вы можете получать ссылки на плейлисты созданные под ваше настроение")
 
 
-
-
-
 @dispatcher.callback_query_handler(lambda c: c.data == 'contiune_generate_music')
 @rate_limit(5)
 async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
@@ -278,7 +275,6 @@ async def process_callback_button1(message: aiogram.types.CallbackQuery):
     await preium_info(message.message)
 
 
-
 @dispatcher.callback_query_handler(lambda c: c.data == 'pay_premium')
 async def process_callback_button1(message: aiogram.types.CallbackQuery):
     await message.message.edit_reply_markup(reply_markup=None)
@@ -307,9 +303,7 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
     await bot.send_message(callback_query.from_user.id, dt[db.getLang(callback_query.from_user.id)], parse_mode="Markdown")
 
 
-
 @dispatcher.message_handler(Command('settings'))
-
 async def settings(callback_query: types.Message):
     dt = {'en': 'ru', 'ru': 'en'}
     db.switchLang(callback_query.from_user.id,
@@ -317,8 +311,6 @@ async def settings(callback_query: types.Message):
     dt = {'ru': open("./files/texts/change_lang_russian", encoding="utf-8").read(),
           "en": open("./files/texts/change_lang_eng", encoding="utf-8").read()}
     await bot.send_message(callback_query.from_user.id, dt[db.getLang(callback_query.from_user.id)], parse_mode="Markdown")
-
-
 
 
 """Этот код печатает имя пользователя и текст, отправленный через сообщение.
@@ -430,7 +422,7 @@ async def music_answer(message: aiogram.types.Message, state: FSMContext):
         await state.update_data(music=message.text)
         try:
             rawText = openaiModel.generateText(
-                f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=300)
+                f'write me {PLAYLIST_SIZE} {textEN} songs in format author - title', max_tokens=1024)
         except:
             await message.answer(open("files/texts/server_error", encoding="utf-8").read())
             await state.finish()
