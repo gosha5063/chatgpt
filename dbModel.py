@@ -23,11 +23,12 @@ class DBModel:  # объект БД
     # путь файла с БД
     dbFilename = "database.db"
 
-    # название таблиц
+    # таблицы
     usersTable = "users"
     memoryTable = "memory"
     rerollsTable = "rerolls"
     queriesTable = "queries"
+    paymentsTable = "payments"
 
     # коннект курсор
     con, cur = None, None
@@ -83,12 +84,27 @@ class DBModel:  # объект БД
             endDate = now+MONTH
         musicPlayers = " ".join(musicPlayers)
         # добавляем строку
+        # в таблицу users
         self.cur.execute(
-            "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(self.usersTable, telegramId, username, now, subscriptionType, freeRolls, endDate, 0, musicPlayers, lang))
+            "INSERT INTO {} VALUES ({},'{}',{},{},{},{},{},'{}','{}');".format(
+                self.usersTable,
+                telegramId,
+                username,
+                now,
+                subscriptionType,
+                freeRolls,
+                endDate,
+                0,  # banned
+                musicPlayers,
+                lang))
+        # в таблицу memory
         self.cur.execute("INSERT INTO {} VALUES ({},'');".format(
-            self.memoryTable, telegramId))
+            self.memoryTable,
+            telegramId))
+        # в таблицу rerolls
         self.cur.execute("INSERT INTO {} VALUES ({},{});".format(
-            self.rerollsTable, telegramId, now))
+            self.rerollsTable,
+            telegramId, now))
         self.con.commit()  # коммит
         return self.OK
 
@@ -258,6 +274,46 @@ class DBModel:  # объект БД
             self.con.commit()  # коммит
             return True
         return False
+
+    @checkDB
+    @checkUserExist
+    def setPayment(self, telegramId, paymentId):
+        paymentOld = self.getPayment(telegramId)
+        if paymentOld == {}:  # если нету тогда создаем
+            self.cur.execute('INSERT INTO {} VALUES ({},"{}")'.format(
+                self.paymentsTable,
+                telegramId,
+                paymentId))
+        else:  # если есть тогда изменяем
+            self.cur.execute('UPDATE {} SET paymentId="{}" WHERE telegramId={};'.format(
+                self.paymentsTable,
+                paymentId,
+                telegramId))
+        self.con.commit()  # коммит
+        return self.OK
+
+    @checkDB
+    @checkUserExist
+    def getPayment(self, telegramId):
+        values = self.cur.execute(
+            'SELECT * from {} WHERE telegramId={};'.format(self.paymentsTable, telegramId)).fetchall()
+        if len(values) == 0:
+            return {}
+        else:
+            values = values[0]
+        keys = ["telegramId", "paymentId"]  # ключи для него
+        d = {}  # словарь который возвращаем
+        for i in range(len(keys)):
+            d[keys[i]] = values[i]
+        return d
+
+    @checkDB
+    @checkUserExist
+    def removePayment(self, telegramId):
+        self.cur.execute(
+            "DELETE FROM {} WHERE telegramId={};".format(self.paymentsTable, telegramId))
+        self.con.commit()  # коммит
+        return self.OK
 
 
 def normalizeText(text):

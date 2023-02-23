@@ -196,49 +196,35 @@ async def process_callback_button1(callback_query: aiogram.types.CallbackQuery):
 
 
 @dispatcher.message_handler(commands=['pay'])
-async def buy(message: aiogram.types.Message):
-    config = secret_keys.paymentTextToken
-    if config.split(':')[1] == 'TEST':
-        await bot.send_message(message.chat.id, "Тестовый платеж!!!")
-
-    await bot.send_invoice(message.chat.id,
-                           title="Подписка на бота",
-                           description="Активация подписки на бота на 1 месяц",
-                           provider_token=config,
-                           currency="rub",
-                           photo_url="https://www.aroged.com/wp-content/uploads/2022/06/Telegram-has-a-premium-subscription.jpg",
-                           photo_width=416,
-                           photo_height=234,
-                           photo_size=416,
-                           is_flexible=False,
-                           prices=[PRICE],
-                           start_parameter="one-month-subscription",
-                           payload="test-invoice-payload")
+async def payCommandHandler(message: aiogram.types.Message):
+    paymentId, url = yookassaModel.createPayment()
+    db.setPayment(message.from_user.id, paymentId)
+    btnCheckPayment = types.InlineKeyboardButton(
+        "Проверить", callback_data="checkPayment")
+    keyboard = types.InlineKeyboardMarkup().add(btnCheckPayment)
+    await bot.send_message(message.from_user.id,url, reply_markup=keyboard)
 
 
-@dispatcher.pre_checkout_query_handler(lambda query: True)
-async def pre_checkout_query(pre_checkout_q: aiogram.types.PreCheckoutQuery):
-    await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
-
-
-# successful payment
-"""Функция, которая срабатывает при успешном платеже.
- Он обновляет тип подписки пользователя в базе данных на Премиум и обновляет 
- дату окончания подписки на месяц вперед. Он распечатывает платежную информацию 
- и отправляет пользователю сообщение с суммой платежа и выбором площадок для прослушивания музыки."""
-
-
-@dispatcher.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
-async def successful_payment(message: aiogram.types.Message):
-    db.updateSubscriptionType(message.from_user.id,
-                              newSubscriptionType=dbModel.SUBSCRIPTION_PREM)
-    db.updateSubscriptionEndDate(message.from_user.id, time.time()+ONE_MONTH)
-    db.clearMusicPlayer(message.from_user.id)
-
-    await bot.send_message(message.chat.id,
-                           f"Платеж на сумму {message.successful_payment.total_amount // 100} {message.successful_payment.currency} прошел успешно!!!\n"
-                           f"Спасибо за доверие! Тепреь вы можете безлимитно все далать")
-
+@dispatcher.callback_query_handler(lambda c: c.data == 'checkPayment')
+async def btnCheckPaymentClick(callback_query: aiogram.types.CallbackQuery):
+    payment = db.getPayment(callback_query.from_user.id)
+    if payment == {}:
+        # гоша измени текст
+        await bot.send_message(callback_query.from_user.id, "Не оплачено")
+        return
+    paymentId = payment["paymentId"]
+    status = yookassaModel.paymentStatus(paymentId)
+    if status == "succeeded":
+        db.removePayment(callback_query.from_user.id)
+        db.updateSubscriptionType(
+            callback_query.from_user.id, dbModel.SUBSCRIPTION_PREM)
+        db.updateSubscriptionEndDate(
+            callback_query.from_user.id, time.time()+ONE_MONTH)
+        db.clearMusicPlayer(callback_query.from_user.id)
+        # гоша измени текст
+        await bot.send_message(callback_query.from_user.id, "Спасибо за покупку, теперь вы премиум пользователь, пользуйтесь мною без ограничений!")
+    else:
+        await bot.send_message(callback_query.from_user.id, "Не оплачено")
 """# This code creates a message handler for the command 'photo'
  and adds a rate limit of 5 per key. If the user's subscription 
  type is premium or they have more than 0 free rolls, they will 
@@ -268,17 +254,10 @@ async def photo_generete(message: types.Message):
   он отправляет пользователю сообщение с указанием нажать команду /premium для подключения проигрывателя."""
 
 
-@dispatcher.callback_query_handler(lambda c: c.data == 'premium')
-async def process_callback_button1(message: aiogram.types.CallbackQuery):
-    await message.message.edit_reply_markup(reply_markup=None)
-    await message.message.delete()
-    await preium_info(message.message)
-
-
 @dispatcher.callback_query_handler(lambda c: c.data == 'pay_premium')
 async def process_callback_button1(message: aiogram.types.CallbackQuery):
     await message.message.edit_reply_markup(reply_markup=None)
-    await buy(message.message)
+    await payCommandHandler(message)
 
 
 @dispatcher.message_handler(Command('premium'))

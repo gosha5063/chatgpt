@@ -1,4 +1,5 @@
 # самописное
+import yookassaModel
 import itunes as itunes
 
 import dbModel
